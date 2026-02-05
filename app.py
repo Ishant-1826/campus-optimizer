@@ -2,14 +2,15 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# Set the page to a dark, academic theme
 st.set_page_config(page_title="NEXUS // IIIT KOTA", layout="centered")
 
+# CSS to maintain your aesthetic
+st.markdown("<style>.stApp { background-color: #050508; } h1, h2, h3, p, label { color: #00f2fe !important; }</style>", unsafe_allow_html=True)
+
 # --- DATABASE CONNECTION ---
-# In Streamlit Cloud, you'll put your Google Sheet link in "Secrets"
+# This looks for your [connections.gsheets] in Secrets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- LOGIN SECTION ---
 if 'user' not in st.session_state:
     st.title("🎓 NEXUS // AUTH")
     sid = st.text_input("Roll Number")
@@ -20,32 +21,45 @@ if 'user' not in st.session_state:
         st.rerun()
     st.stop()
 
-# --- MAIN INTERFACE ---
 user = st.session_state.user
 st.title("🎯 Peer Optimizer")
-st.write(f"Active Node: **{user['name']}** | Branch: **{user['branch']}**")
-
 is_active = st.toggle("BROADCAST MY GAP", value=False)
-my_focus = st.multiselect("Study Focus:", ["Python", "DSA", "ML", "Linear Algebra"], default=["Python"])
+my_focus = st.multiselect("Study Focus:", ["Python", "DSA", "ML", "Math"], default=["Python"])
 
-# --- SYNC LOGIC ---
+# --- DATA SYNC LOGIC ---
 if is_active:
-    # This part would normally write to the sheet. 
-    # For now, let's read the shared peer list.
     try:
-        df = conn.read(ttl=5) # Refresh every 5 seconds to see friends
+        # 1. Prepare current user data
+        new_row = pd.DataFrame([{
+            "student_id": user["id"], "name": user["name"], "branch": user["branch"],
+            "interests": ", ".join(my_focus), "is_active": True
+        }])
         
-        st.subheader("🤝 Available Peers")
-        # Filter the sheet to show other active students
-        others = df[df['student_id'] != user['id']]
+        # 2. Update the Sheet: Read, Merge, Write back
+        # We use ttl=0 so we don't read old cached data
+        all_data = conn.read(ttl=0)
+        updated_df = pd.concat([all_data[all_data['student_id'] != user["id"]], new_row], ignore_index=True)
+        conn.update(data=updated_df)
         
-        if others.empty:
-            st.info("Searching for peers... Tell your friend to join!")
+    except Exception as e:
+        st.error(f"Sync failed: {e}")
+
+# --- PEER DISCOVERY ---
+st.divider()
+if is_active:
+    try:
+        # Read the latest data
+        df = conn.read(ttl=2) 
+        peers = df[(df['student_id'] != user['id']) & (df['is_active'] == True)]
+        
+        if peers.empty:
+            st.info("Waiting for your friend to toggle ON...")
         else:
-            for index, row in others.iterrows():
+            for _, p in peers.iterrows():
                 with st.container(border=True):
-                    st.markdown(f"**{row['name']}** ({row['branch']})")
-                    st.caption(f"Studying: {row['interests']}")
-                    st.button("Sync Request", key=row['student_id'])
+                    st.write(f"👤 **{p['name']}** ({p['branch']})")
+                    st.caption(f"Studying: {p['interests']}")
     except:
-        st.warning("Connect your Google Sheet in App Secrets to see live peers.")
+        st.warning("Refresh or check connection.")
+else:
+    st.info("Toggle 'BROADCAST GAP' to see peers.")
