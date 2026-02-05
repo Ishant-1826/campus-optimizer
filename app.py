@@ -124,34 +124,20 @@ elif st.session_state.page == 'dashboard':
 
         # KNN Computation
         active_peers = all_data[(all_data['student_id'] != user['id']) & (all_data['is_active'] == True)]
-        
+        # --- UPDATED KNN ENGINE WITH DATA CLEANING ---
         if not active_peers.empty:
-            peer_vectors = [encode_interests(p.split(",")) for p in active_peers['interests']]
+            # 1. Fill empty interest cells with an empty string to prevent 'float' errors
+            active_peers['interests'] = active_peers['interests'].fillna("")
+            
+            # 2. Convert strings to vectors
+            peer_vectors = [encode_interests(str(p).split(",")) for p in active_peers['interests']]
+            
+            # 3. Proceed with KNN Fit
             knn = NearestNeighbors(n_neighbors=min(len(peer_vectors), 4), metric='cosine')
             knn.fit(peer_vectors)
             distances, indices = knn.kneighbors([user_vector])
             
-            st.write("## 🤖 TOP NEURAL MATCHES")
-            grid = st.columns(2)
-            for i, idx_val in enumerate(indices[0]):
-                p = active_peers.iloc[idx_val]
-                similarity = round((1 - distances[0][i]) * 100, 1)
-                
-                with grid[i % 2]:
-                    st.markdown(f"""
-                    <div class="glass-card">
-                        <h2 style="margin:0;">👤 {p['name']}</h2>
-                        <p style="color:#888;">MATCH PROBABILITY: {similarity}%</p>
-                        <div style="margin: 15px 0;">
-                            {" ".join([f'<span class="detail-tag">{tag}</span>' for tag in p['interests'].split(',')])}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    c1, c2, c3 = st.columns(3)
-                    with c1: st.button("⚡ LINK", key=f"L_{p['student_id']}")
-                    with c2: st.button("📄 INFO", key=f"I_{p['student_id']}")
-                    with c3: st.button("💬 CHAT", key=f"C_{p['student_id']}")
+    # ... (Rest of your UI code) ...
         else:
             st.info("Scanning for compatible nodes in the IIIT Kota network...")
 
