@@ -9,56 +9,103 @@ from sklearn.neighbors import NearestNeighbors
 st.set_page_config(page_title="NEXUS // NOVA", page_icon="🌌", layout="wide")
 
 # 2. ULTRA-MODERN CSS: ANIMATED BACKGROUND & PILL TOGGLE
-st.markdown("""
-    <style>
-    /* Animated Gradient Background */
+st.markdown("""<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap');
+
+    /* 1. Refined Background: Deep Space Polish */
     .stApp {
-        background: linear-gradient(-45deg, #050508, #0a0a2e, #001f3f, #050508);
-        background-size: 400% 400%;
-        animation: gradient 15s ease infinite;
-    }
-    @keyframes gradient {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
+        background: radial-gradient(circle at 50% 50%, #0d1117 0%, #050508 100%);
+        background-attachment: fixed;
     }
 
-    /* High-Contrast Neon Text */
-    h1, h2, h3, p, label, span, .stMarkdown { 
-        color: #00f2fe !important; 
-        font-family: 'Inter', sans-serif;
-        font-weight: 800 !important;
-        text-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
+    /* 2. Typography: Improved Hierarchy */
+    h1, h2, h3, label, .stMarkdown {
+        font-family: 'Inter', sans-serif !important;
+        color: #f0f6fc !important; /* Soft white for readability */
+        letter-spacing: -0.02em;
     }
 
-    /* THE PILL TOGGLE (Large & Blue) */
+    h1 { font-weight: 800 !important; font-size: 3.5rem !important; margin-bottom: 0.5rem !important; }
+    h2 { font-weight: 600 !important; color: #00f2fe !important; } /* Cyan for key headers */
+    
+    /* Reduced glow to prevent eye strain */
+    .stMarkdown p { 
+        color: #8b949e !important; 
+        font-weight: 400 !important; 
+        text-shadow: none !important;
+        font-size: 1.1rem;
+    }
+
+    /* 3. The "Neural Switch" Toggle: Modern Pill Style */
     div[data-testid="stCheckbox"] > label > div[role="checkbox"] {
-        height: 50px !important; width: 100px !important;
-        background-color: #1a1a1a !important; border-radius: 50px !important;
-        border: 3px solid #4facfe !important;
-    }
-    div[data-testid="stCheckbox"] > label > div[role="checkbox"][aria-checked="true"] {
-        background-color: #4facfe !important;
-        box-shadow: 0 0 20px #4facfe;
+        height: 34px !important; 
+        width: 65px !important;
+        background-color: #21262d !important; 
+        border-radius: 20px !important;
+        border: 2px solid #30363d !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
 
-    /* Glassmorphism Cards */
+    div[data-testid="stCheckbox"] > label > div[role="checkbox"][aria-checked="true"] {
+        background-color: #00f2fe !important;
+        border-color: #00f2fe !important;
+        box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+    }
+
+    /* 4. Glassmorphism 2.0: Subtle Depth */
     .glass-card {
-        background: rgba(255, 255, 255, 0.05);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(0, 242, 254, 0.2);
-        border-radius: 30px;
-        padding: 40px;
-        margin-bottom: 25px;
-        transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        background: rgba(22, 27, 34, 0.6) !important;
+        backdrop-filter: blur(12px) saturate(180%);
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
+        border: 1px solid rgba(48, 54, 61, 0.8);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        transition: transform 0.2s ease, border-color 0.2s ease;
     }
+
     .glass-card:hover {
-        transform: scale(1.03);
-        border-color: #00f2fe;
-        box-shadow: 0 0 40px rgba(0, 242, 254, 0.2);
+        transform: translateY(-4px);
+        border-color: #bc8cff; /* Soft Violet accent on hover */
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
     }
-    </style>
-    """, unsafe_allow_html=True)
+
+    /* 5. Buttons: Smooth Kinetic Feedback */
+    .stButton > button {
+        background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%) !important;
+        color: #050508 !important;
+        border: none !important;
+        padding: 0.6rem 2rem !important;
+        border-radius: 8px !important;
+        font-weight: 700 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        transition: all 0.3s ease !important;
+    }
+
+    .stButton > button:hover {
+        box-shadow: 0 0 20px rgba(79, 172, 254, 0.6) !important;
+        transform: scale(1.02);
+    }
+
+    /* 6. Sidebar & Inputs Polish */
+    [data-testid="stSidebar"] {
+        background-color: #0d1117 !important;
+        border-right: 1px solid #30363d;
+    }
+
+    .stMultiSelect div[data-baseweb="select"] {
+        background-color: #0d1117 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 8px;
+    }
+
+    /* 7. Status & Toasts */
+    div[data-testid="stStatusWidget"] {
+        background-color: #161b22 !important;
+        border: 1px solid #00f2fe !important;
+    }
+</style>""", unsafe_allow_html=True)
 
 # 3. DATABASE CONNECTION
 conn = st.connection("gsheets", type=GSheetsConnection)
