@@ -110,6 +110,8 @@ elif st.session_state.page == 'hub':
                 st.markdown("<h2 style='text-align: center;'>USER UPLINK</h2>", unsafe_allow_html=True)
                 sid = st.text_input("UNIVERSITY ID", placeholder="Roll Number")
                 nick = st.text_input("ALIAS", placeholder="Choose a display name")
+                # Removed "Maths" to standardise inputs, kept others. 
+                # Note: If "Maths" is in your sheet, make sure to add it here or clean it.
                 interests = st.multiselect(
                     "CORE EXPERTISE", 
                     ["Python", "ML", "DSA", "Maths", "Web Dev", "Cybersec", "AI", "Blockchain", "Design"],
@@ -121,7 +123,7 @@ elif st.session_state.page == 'hub':
                         st.cache_data.clear()
                         df = conn.read(ttl=0)
                         df.columns = df.columns.str.strip().str.lower()
-                        sid_str = str(sid)
+                        sid_str = str(sid).strip()
                         interest_str = ", ".join(interests)
                         
                         if not df.empty and sid_str in df['student_id'].astype(str).values:
@@ -156,24 +158,29 @@ elif st.session_state.page == 'hub':
         
         # 2. FILTER FOR ACTIVE USERS
         all_data['status_check'] = all_data['is_active'].astype(str).str.strip().str.upper()
-        # We need the current user inside this dataframe to calculate relative distance
+        # Keep ALL active users including yourself for calculation
         active_df = all_data[all_data['status_check'] == "TRUE"].copy().reset_index(drop=True)
 
         if len(active_df) < 2:
              st.info("📡 SCANNING... No other nodes detected. Wait for peers to join.")
         else:
-            # --- KNN ALGORITHM IMPLEMENTATION ---
+            # --- KNN ALGORITHM IMPLEMENTATION (FIXED) ---
             
-            # A. PREPARE DATA: Clean and split interests into lists
-            active_df['interests_clean'] = active_df['interests'].fillna("").astype(str).str.split(", ")
+            # A. PREPARE DATA: CLEANING
+            # 1. Lowercase everything to match 'Python' with 'python'
+            # 2. Split by comma
+            # 3. Strip whitespace from every item
+            active_df['interests_clean'] = active_df['interests'].astype(str).str.lower().apply(
+                lambda x: [i.strip() for i in x.split(',') if i.strip()]
+            )
 
-            # B. ENCODE DATA: MultiLabelBinarizer (Text -> Matrix)
+            # B. ENCODE DATA
             mlb = MultiLabelBinarizer()
             feature_matrix = mlb.fit_transform(active_df['interests_clean'])
 
             # C. TRAIN KNN
-            # metric='jaccard' is ideal for set overlapping
-            knn = NearestNeighbors(n_neighbors=len(active_df), metric='jaccard')
+            # 'brute' algorithm forces direct calculation, safer for small data
+            knn = NearestNeighbors(n_neighbors=len(active_df), metric='jaccard', algorithm='brute')
             knn.fit(feature_matrix)
 
             # D. FIND CURRENT USER'S NEIGHBORS
@@ -185,19 +192,18 @@ elif st.session_state.page == 'hub':
             
             cols = st.columns(3)
             
-            # indices[0] contains the sorted indexes. 
-            # We skip [0] because that is the user themselves.
             count = 0
+            # Skip the first result [1:] because it is always the user themselves (distance 0)
             for i, neighbor_idx in enumerate(indices[0][1:]):
                 peer_row = active_df.iloc[neighbor_idx]
                 
-                # Calculate Match Score (1 - Distance) * 100
-                # Jaccard distance is 0 for identical, 1 for different.
-                match_score = int((1 - distances[0][i+1]) * 100)
+                # Calculate Match Score
+                dist = distances[0][i+1]
+                match_score = int((1 - dist) * 100)
                 
-                # Format Badges
-                raw_interests = peer_row['interests_clean']
-                badges_html = "".join([f"<span class='badge'>{x}</span>" for x in raw_interests])
+                # Visuals: Re-capitalize tags for display
+                display_tags = [t.upper() for t in peer_row['interests_clean']]
+                badges_html = "".join([f"<span class='badge'>{x}</span>" for x in display_tags])
                 
                 with cols[count % 3]:
                     st.markdown(f"""
