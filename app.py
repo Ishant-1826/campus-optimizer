@@ -115,6 +115,8 @@ elif st.session_state.page == 'hub':
                 
                 if st.form_submit_button("ESTABLISH CONNECTION"):
                     try:
+                        # Clear cache BEFORE reading to ensure fresh data
+                        st.cache_data.clear()
                         df = conn.read(ttl=0)
                         df.columns = df.columns.str.strip().str.lower()
                         sid_str = str(sid)
@@ -138,20 +140,22 @@ elif st.session_state.page == 'hub':
     user = st.session_state.user
     st.markdown(f"<h1>SYSTEM HUB // <span style='color:#bc8cff;'>{user['name'].upper()}</span></h1>", unsafe_allow_html=True)
 
+    # --- CRITICAL REFRESH LOGIC ---
     if st.button("🔄 SYNCHRONIZE ACTIVE NODES"):
         st.cache_data.clear()
         st.rerun()
 
     try:
+        # Load data with forced no-cache
         all_data = conn.read(ttl=0)
         all_data.columns = all_data.columns.str.strip().str.lower()
         
-        # --- THE FIX: ROBUST STATUS CLEANING ---
         if not all_data.empty:
-            # Convert any type (bool or string) to a clean uppercase string "TRUE"
+            # Force status to clean string uppercase to match 'TRUE'
             all_data['status_check'] = all_data['is_active'].astype(str).str.strip().str.upper()
             
-            # Hide current user, show ONLY those that are strictly "TRUE"
+            # 1. Filter out the current user (you won't see yourself)
+            # 2. Filter for those who are strictly "TRUE"
             peers = all_data[
                 (all_data['student_id'].astype(str) != str(user['id'])) & 
                 (all_data['status_check'] == "TRUE")
@@ -168,7 +172,10 @@ elif st.session_state.page == 'hub':
                         
                         st.markdown(f"""
                             <div class='node-card'>
-                                <b style='color:#00f2fe; font-size:1.4rem;'>{row[1]['name']}</b>
+                                <div style='display: flex; justify-content: space-between;'>
+                                    <b style='color:#00f2fe; font-size:1.4rem;'>{row[1]['name']}</b>
+                                    <span style='color: #00f2fe;'>● LIVE</span>
+                                </div>
                                 <p style='color:#8b949e; font-size:0.8rem; margin:10px 0;'>ID: {row[1]['student_id']}</p>
                                 <div style='margin-bottom:20px;'>{badges_html}</div>
                             </div>
@@ -178,16 +185,20 @@ elif st.session_state.page == 'hub':
                             st.session_state.page = 'success'
                             st.rerun()
             else:
-                st.info("No other nodes detected. Test this by opening an Incognito window and logging in as a different student ID.")
+                st.info("Searching for nodes... Open this URL in an Incognito window and log in with a **different ID** to see a peer appear.")
                 
     except Exception as e:
         st.error(f"Read Error: {e}")
 
     with st.sidebar:
         st.markdown("### 🛠️ DIAGNOSTICS")
-        if st.checkbox("View Active Sheet"):
-            st.dataframe(all_data[['student_id', 'name', 'is_active']])
+        # Use this to check if the data is actually reaching your app
+        if st.checkbox("DEBUG: View All Network Rows"):
+            st.write("Raw data from Google Sheets:")
+            st.dataframe(all_data)
+            
         if st.button("TERMINATE CONNECTION"):
+            st.cache_data.clear()
             df = conn.read(ttl=0)
             df.columns = df.columns.str.strip().str.lower()
             df.loc[df['student_id'].astype(str) == str(user['id']), 'is_active'] = "FALSE"
@@ -202,6 +213,7 @@ elif st.session_state.page == 'success':
         <div style='text-align: center; border: 2px solid #00f2fe; padding: 50px; border-radius: 20px; background: rgba(0, 242, 254, 0.05);'>
             <h1 style='font-size: 4rem;'>UPLINK ESTABLISHED</h1>
             <p style='font-size: 1.5rem;'>Matched with <b style='color:#bc8cff;'>{st.session_state.linked_peer.upper()}</b></p>
+            <p>Ready to collaborate on shared expertise.</p>
         </div>
     """, unsafe_allow_html=True)
     if st.button("RETURN TO HUB"):
