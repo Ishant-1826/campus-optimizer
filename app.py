@@ -139,7 +139,7 @@ elif st.session_state.page == 'success':
 
     
 
-[Image of K-Nearest Neighbors diagram]
+# [Image of K-Nearest Neighbors diagram]
 
 
     if st.button("RETURN TO DASHBOARD"):
