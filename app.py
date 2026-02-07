@@ -70,11 +70,6 @@ st.markdown("""
         transition: 0.3s;
         width: 100%;
     }
-
-    .stButton > button:hover {
-        background: rgba(0, 242, 254, 0.1) !important;
-        box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -113,23 +108,28 @@ elif st.session_state.page == 'hub':
                 
                 if st.form_submit_button("ESTABLISH CONNECTION"):
                     try:
-                        # FIX 1: Clear cache before reading to get fresh data
                         st.cache_data.clear()
                         df = conn.read(ttl=0)
                         df.columns = df.columns.str.strip().str.lower()
                         sid_str = str(sid).strip()
                         interest_str = ", ".join(interests)
                         
+                        # FORCE UPDATE TO "TRUE"
                         if not df.empty and sid_str in df['student_id'].astype(str).values:
-                            df.loc[df['student_id'].astype(str) == sid_str, 'is_active'] = "TRUE"
-                            df.loc[df['student_id'].astype(str) == sid_str, 'name'] = nick
-                            df.loc[df['student_id'].astype(str) == sid_str, 'interests'] = interest_str
+                            mask = df['student_id'].astype(str) == sid_str
+                            df.loc[mask, 'is_active'] = "TRUE"
+                            df.loc[mask, 'name'] = nick
+                            df.loc[mask, 'interests'] = interest_str
                         else:
-                            new_user = pd.DataFrame([{"student_id": sid_str, "name": nick, "is_active": "TRUE", "interests": interest_str}])
+                            new_user = pd.DataFrame([{
+                                "student_id": sid_str, 
+                                "name": nick, 
+                                "is_active": "TRUE", 
+                                "interests": interest_str
+                            }])
                             df = pd.concat([df, new_user], ignore_index=True)
                         
                         conn.update(data=df)
-                        # FIX 2: Clear cache again after update
                         st.cache_data.clear()
                         st.session_state.user = {"id": sid_str, "name": nick}
                         st.rerun()
@@ -146,20 +146,15 @@ elif st.session_state.page == 'hub':
         st.rerun()
 
     try:
-        # FIX 3: Always read with ttl=0
         all_data = conn.read(ttl=0)
         all_data.columns = all_data.columns.str.strip().str.lower()
         
-        # FIX 4: Flexible status check (Handles '1', 'TRUE', 'true')
+        # FLEXIBLE FILTER: Handles "TRUE", "true", "1", 1 (int)
         all_data['status_check'] = all_data['is_active'].astype(str).str.strip().str.upper()
         active_df = all_data[all_data['status_check'].isin(["TRUE", "1"])].copy().reset_index(drop=True)
 
         if len(active_df) < 2:
-             st.info("📡 SCANNING... No other nodes detected. Wait for peers to join.")
-             # Debug info if screen is empty
-             if st.checkbox("Show Debug Data"):
-                 st.write("Active Users Found:", len(active_df))
-                 st.dataframe(all_data)
+             st.info("📡 SCANNING... No other active nodes detected. Ensure others are marked 'TRUE' in Sheets.")
         else:
             # KNN Logic
             active_df['interests_clean'] = active_df['interests'].astype(str).str.lower().apply(
@@ -177,6 +172,7 @@ elif st.session_state.page == 'hub':
             cols = st.columns(3)
             count = 0
             
+            # Show top matches excluding self
             for i, neighbor_idx in enumerate(indices[0][1:]):
                 peer_row = active_df.iloc[neighbor_idx]
                 dist = distances[0][i+1]
@@ -191,40 +187,4 @@ elif st.session_state.page == 'hub':
                                 <b style='color:#00f2fe; font-size:1.4rem;'>{peer_row['name']}</b>
                                 <span style='color: #bc8cff; font-weight:bold;'>{match_score}% MATCH</span>
                             </div>
-                            <p style='color:#8b949e; font-size:0.8rem; margin:10px 0;'>ID: {peer_row['student_id']}</p>
-                            <div style='margin-bottom:20px;'>{badges_html}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    if st.button(f"LINK WITH {peer_row['name'].upper()}", key=f"btn_{peer_row['student_id']}"):
-                        st.session_state.linked_peer = peer_row['name']
-                        st.session_state.page = 'success'
-                        st.rerun()
-                count += 1
-                
-    except Exception as e:
-        st.error(f"Read Error: {e}")
-
-    with st.sidebar:
-        st.markdown("### 🛠 DIAGNOSTICS")
-        if st.button("TERMINATE CONNECTION"):
-            st.cache_data.clear()
-            df = conn.read(ttl=0)
-            df.columns = df.columns.str.strip().str.lower()
-            df.loc[df['student_id'].astype(str) == str(user['id']), 'is_active'] = "FALSE"
-            conn.update(data=df)
-            st.session_state.clear()
-            st.rerun()
-
-# --- PAGE 3: SUCCESS ---
-elif st.session_state.page == 'success':
-    st.markdown("<br><br><br>", unsafe_allow_html=True)
-    st.markdown(f"""
-        <div style='text-align: center; border: 2px solid #00f2fe; padding: 50px; border-radius: 20px; background: rgba(0, 242, 254, 0.05);'>
-            <h1 style='font-size: 4rem;'>UPLINK ESTABLISHED</h1>
-            <p style='font-size: 1.5rem;'>Matched with <b style='color:#bc8cff;'>{st.session_state.linked_peer.upper()}</b></p>
-        </div>
-    """, unsafe_allow_html=True)
-    if st.button("RETURN TO HUB"):
-        st.session_state.page = 'hub'
-        st.rerun()
+                            <p style='color:#8b94
