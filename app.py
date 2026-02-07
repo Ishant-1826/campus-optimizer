@@ -7,7 +7,7 @@ from sklearn.preprocessing import MultiLabelBinarizer
 # 1. ARCHITECTURAL CONFIG
 st.set_page_config(
     page_title="Reschedule // Resource Protocol", 
-    page_icon="📡", 
+    page_icon="🤖", 
     layout="wide"
 )
 
@@ -75,11 +75,6 @@ st.markdown("""
         background: rgba(0, 242, 254, 0.1) !important;
         box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
     }
-
-    [data-testid="stSidebar"] {
-        background-color: #07090e !important;
-        border-right: 1px solid rgba(255,255,255,0.05);
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -110,8 +105,6 @@ elif st.session_state.page == 'hub':
                 st.markdown("<h2 style='text-align: center;'>USER UPLINK</h2>", unsafe_allow_html=True)
                 sid = st.text_input("UNIVERSITY ID", placeholder="Roll Number")
                 nick = st.text_input("ALIAS", placeholder="Choose a display name")
-                # Removed "Maths" to standardise inputs, kept others. 
-                # Note: If "Maths" is in your sheet, make sure to add it here or clean it.
                 interests = st.multiselect(
                     "CORE EXPERTISE", 
                     ["Python", "ML", "DSA", "Math", "Web Dev", "Cybersec", "AI", "Blockchain", "Design"],
@@ -120,6 +113,7 @@ elif st.session_state.page == 'hub':
                 
                 if st.form_submit_button("ESTABLISH CONNECTION"):
                     try:
+                        # FIX 1: Clear cache before reading to get fresh data
                         st.cache_data.clear()
                         df = conn.read(ttl=0)
                         df.columns = df.columns.str.strip().str.lower()
@@ -127,16 +121,16 @@ elif st.session_state.page == 'hub':
                         interest_str = ", ".join(interests)
                         
                         if not df.empty and sid_str in df['student_id'].astype(str).values:
-                            # Update existing user
                             df.loc[df['student_id'].astype(str) == sid_str, 'is_active'] = "TRUE"
                             df.loc[df['student_id'].astype(str) == sid_str, 'name'] = nick
                             df.loc[df['student_id'].astype(str) == sid_str, 'interests'] = interest_str
                         else:
-                            # Create new user
                             new_user = pd.DataFrame([{"student_id": sid_str, "name": nick, "is_active": "TRUE", "interests": interest_str}])
                             df = pd.concat([df, new_user], ignore_index=True)
                         
                         conn.update(data=df)
+                        # FIX 2: Clear cache again after update
+                        st.cache_data.clear()
                         st.session_state.user = {"id": sid_str, "name": nick}
                         st.rerun()
                     except Exception as e:
@@ -152,56 +146,41 @@ elif st.session_state.page == 'hub':
         st.rerun()
 
     try:
-        # 1. LOAD DATA
+        # FIX 3: Always read with ttl=0
         all_data = conn.read(ttl=0)
         all_data.columns = all_data.columns.str.strip().str.lower()
         
-        # 2. FILTER FOR ACTIVE USERS
+        # FIX 4: Flexible status check (Handles '1', 'TRUE', 'true')
         all_data['status_check'] = all_data['is_active'].astype(str).str.strip().str.upper()
-        # Keep ALL active users including yourself for calculation
-        active_df = all_data[all_data['status_check'] == "TRUE"].copy().reset_index(drop=True)
+        active_df = all_data[all_data['status_check'].isin(["TRUE", "1"])].copy().reset_index(drop=True)
 
         if len(active_df) < 2:
              st.info("📡 SCANNING... No other nodes detected. Wait for peers to join.")
+             # Debug info if screen is empty
+             if st.checkbox("Show Debug Data"):
+                 st.write("Active Users Found:", len(active_df))
+                 st.dataframe(all_data)
         else:
-            # --- KNN ALGORITHM IMPLEMENTATION (FIXED) ---
-            
-            # A. PREPARE DATA: CLEANING
-            # 1. Lowercase everything to match 'Python' with 'python'
-            # 2. Split by comma
-            # 3. Strip whitespace from every item
+            # KNN Logic
             active_df['interests_clean'] = active_df['interests'].astype(str).str.lower().apply(
                 lambda x: [i.strip() for i in x.split(',') if i.strip()]
             )
-
-            # B. ENCODE DATA
             mlb = MultiLabelBinarizer()
             feature_matrix = mlb.fit_transform(active_df['interests_clean'])
-
-            # C. TRAIN KNN
-            # 'brute' algorithm forces direct calculation, safer for small data
             knn = NearestNeighbors(n_neighbors=len(active_df), metric='jaccard', algorithm='brute')
             knn.fit(feature_matrix)
 
-            # D. FIND CURRENT USER'S NEIGHBORS
             curr_user_idx = active_df[active_df['student_id'].astype(str) == str(user['id'])].index[0]
             distances, indices = knn.kneighbors([feature_matrix[curr_user_idx]])
 
-            # --- DISPLAY RESULTS ---
-            st.markdown(f"### 🤖 RECOMMENDED PEER NODES (AI RANKED)")
-            
+            st.markdown(f"### 🎯 RECOMMENDED PEER NODES")
             cols = st.columns(3)
-            
             count = 0
-            # Skip the first result [1:] because it is always the user themselves (distance 0)
+            
             for i, neighbor_idx in enumerate(indices[0][1:]):
                 peer_row = active_df.iloc[neighbor_idx]
-                
-                # Calculate Match Score
                 dist = distances[0][i+1]
                 match_score = int((1 - dist) * 100)
-                
-                # Visuals: Re-capitalize tags for display
                 display_tags = [t.upper() for t in peer_row['interests_clean']]
                 badges_html = "".join([f"<span class='badge'>{x}</span>" for x in display_tags])
                 
@@ -227,10 +206,7 @@ elif st.session_state.page == 'hub':
         st.error(f"Read Error: {e}")
 
     with st.sidebar:
-        st.markdown("### 🛠️ DIAGNOSTICS")
-        if st.checkbox("DEBUG: View All Network Rows"):
-            st.dataframe(all_data)
-            
+        st.markdown("### 🛠 DIAGNOSTICS")
         if st.button("TERMINATE CONNECTION"):
             st.cache_data.clear()
             df = conn.read(ttl=0)
@@ -247,7 +223,6 @@ elif st.session_state.page == 'success':
         <div style='text-align: center; border: 2px solid #00f2fe; padding: 50px; border-radius: 20px; background: rgba(0, 242, 254, 0.05);'>
             <h1 style='font-size: 4rem;'>UPLINK ESTABLISHED</h1>
             <p style='font-size: 1.5rem;'>Matched with <b style='color:#bc8cff;'>{st.session_state.linked_peer.upper()}</b></p>
-            <p>Ready to collaborate on shared expertise.</p>
         </div>
     """, unsafe_allow_html=True)
     if st.button("RETURN TO HUB"):
