@@ -8,110 +8,65 @@ import time
 from sklearn.neighbors import NearestNeighbors
 import streamlit.components.v1 as components
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(
-    page_title="Reschedule // AI-LINK",
-    page_icon="🪐",
-    layout="wide"
-)
+# 1. UI CONFIGURATION
+st.set_page_config(page_title="Reschedule // AI-LINK", page_icon="📶", layout="wide")
 
-# ---------------- 3D SPLINE BACKGROUND ----------------
-def spline_background():
-    components.html("""
+# 2. PRISM DARK CSS + 3D Container Styling
+st.markdown("""
     <style>
-    iframe {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        border: none;
-        z-index: -10;
-        pointer-events: none;
+    .stApp { background-color: #0d1117; }
+    h1, h2, h3, label { color: #f0f6fc !important; font-family: 'Inter', sans-serif; font-weight: 800 !important; }
+    
+    .stButton > button {
+        background: linear-gradient(135deg, #00f2fe 0%, #bc8cff 100%) !important;
+        color: #000 !important; font-weight: 800 !important; 
+        border-radius: 10px !important; text-transform: uppercase;
+        width: 100%;
+    }
+
+    /* Modern Toggle Switch Styling */
+    div[data-testid="stCheckbox"] > label > div[role="checkbox"] {
+        height: 38px !important; width: 75px !important;
+        background-color: #21262d !important; border-radius: 40px !important;
+        border: 2px solid #30363d !important;
+    }
+    div[data-testid="stCheckbox"] > label > div[role="checkbox"][aria-checked="true"] {
+        background-color: #00f2fe !important;
+    }
+
+    .prism-card {
+        background: rgba(22, 27, 34, 0.6);
+        border: 1px solid rgba(48, 54, 61, 0.8);
+        border-radius: 16px; padding: 25px; margin-bottom: 20px;
+    }
+    .offline-badge { background: #ff4b4b; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; }
+    
+    /* Spline iframe container */
+    .spline-container {
+        border-radius: 20px;
+        overflow: hidden;
+        border: 1px solid #30363d;
+        margin-bottom: 2rem;
     }
     </style>
+    """, unsafe_allow_html=True)
 
-    <iframe src="https://my.spline.design/scene-APLWNQ6NOdTkkMLi/"></iframe>
-    """, height=0)
+# --- 3. HELPER: SPLINE 3D SCENE ---
+def render_spline():
+    """Embeds the Spline 3D Scene into the Streamlit UI."""
+    spline_url = "https://my.spline.design/APLWNQ6NOdTkkMLi/"
+    components.html(
+        f"""
+        <div style="border-radius: 20px; overflow: hidden;">
+            <iframe src="{spline_url}" frameborder="0" width="100%" height="500px"></iframe>
+        </div>
+        """,
+        height=500,
+    )
 
-spline_background()
-
-# ---------------- GLOBAL CSS ----------------
-st.markdown("""
-<style>
-
-/* Hide Streamlit UI */
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-header {visibility: hidden;}
-
-.stApp {
-    background: transparent;
-}
-
-/* Gradient headings */
-h1, h2, h3 {
-    font-family: 'Inter', sans-serif;
-    font-weight: 800 !important;
-    background: linear-gradient(90deg,#00f2fe,#bc8cff);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-/* Glass cards */
-.glass {
-    background: rgba(20, 25, 35, 0.45);
-    backdrop-filter: blur(18px);
-    border-radius: 18px;
-    border: 1px solid rgba(255,255,255,0.15);
-    padding: 25px;
-    margin-bottom: 20px;
-    box-shadow: 0 0 30px rgba(123,156,255,0.15);
-}
-
-/* Buttons */
-.stButton>button {
-    background: linear-gradient(135deg,#00f2fe,#bc8cff);
-    color: black;
-    font-weight: 700;
-    border-radius: 14px;
-    padding: 12px 25px;
-    border: none;
-    transition: 0.25s;
-}
-
-.stButton>button:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 25px #7b9cff;
-}
-
-/* Inputs */
-.stTextInput>div>div>input {
-    background: rgba(0,0,0,0.45);
-    color: white;
-    border-radius: 10px;
-}
-
-/* Multiselect */
-.stMultiSelect>div>div {
-    background: rgba(0,0,0,0.45);
-    border-radius: 10px;
-}
-
-/* Success badge */
-.status {
-    color:#00f2fe;
-    font-weight:600;
-    font-size:18px;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-# ---------------- OFFLINE P2P DISCOVERY ----------------
+# --- 4. OFFLINE P2P DISCOVERY ENGINE ---
 UDP_PORT = 5005
-if 'local_peers' not in st.session_state:
-    st.session_state.local_peers = {}
+if 'local_peers' not in st.session_state: st.session_state.local_peers = {}
 
 def start_broadcast(name):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -120,8 +75,7 @@ def start_broadcast(name):
         try:
             message = f"RESCHEDULE_PEER:{name}".encode()
             sock.sendto(message, ('<broadcast>', UDP_PORT))
-        except:
-            pass
+        except: pass
         time.sleep(4)
 
 def listen_for_peers():
@@ -132,169 +86,100 @@ def listen_for_peers():
         msg = data.decode()
         if msg.startswith("RESCHEDULE_PEER:"):
             peer_name = msg.split(":")[1]
-            st.session_state.local_peers[addr[0]] = {
-                "name": peer_name,
-                "time": time.time()
-            }
+            st.session_state.local_peers[addr[0]] = {"name": peer_name, "time": time.time()}
 
-# ---------------- PAGE ROUTING ----------------
-if 'page' not in st.session_state:
-    st.session_state.page = 'gate'
+# --- NAVIGATION ---
+if 'page' not in st.session_state: st.session_state.page = 'gate'
 
-# =========================================================
-# ======================= GATEWAY ==========================
-# =========================================================
-
+# --- PAGE 1: GATEWAY ---
 if st.session_state.page == 'gate':
+    render_spline()  # THE 3D DESIGN
+    st.write("# 📡 RESCHEDULE GATEWAY")
+    is_free = st.checkbox("SIGNAL AVAILABILITY", key="gate_toggle")
+    if is_free:
+        st.markdown("<h1 style='color:#00f2fe !important; font-size: 60px;'>I AM FREE</h1>", unsafe_allow_html=True)
+        if st.button("PROCEED TO HUB"):
+            st.session_state.page = 'hub'
+            st.rerun()
 
-    st.markdown("""
-    <div class="glass" style="text-align:center; margin-top:120px;">
-        <h1 style="font-size:60px;">RESCHEDULE AI-LINK</h1>
-        <p style="color:#c9d1d9; font-size:18px;">
-        Real-time peer matching system that detects free students
-        and connects collaborators automatically across campus.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.write("")
-
-    col1, col2, col3 = st.columns([1,2,1])
-
-    with col2:
-        is_free = st.toggle("I am available now", key="gate_toggle")
-
-        if is_free:
-            st.markdown('<p class="status">● Discoverable to peers</p>', unsafe_allow_html=True)
-
-            if st.button("ENTER HUB"):
-                st.session_state.page = 'hub'
-                st.rerun()
-
-# =========================================================
-# ========================= HUB ============================
-# =========================================================
-
+# --- PAGE 2: HUB ---
 elif st.session_state.page == 'hub':
-
     if 'user' not in st.session_state:
         with st.form("id"):
-            st.markdown('<div class="glass">', unsafe_allow_html=True)
-            sid = st.text_input("Roll Number")
-            name = st.text_input("Nickname")
-            submit = st.form_submit_button("Connect to Network")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            if submit:
+            sid = st.text_input("ROLL NUMBER")
+            name = st.text_input("NICKNAME")
+            if st.form_submit_button("CONNECT"):
                 st.session_state.user = {"id": sid, "name": name}
-
                 threading.Thread(target=start_broadcast, args=(name,), daemon=True).start()
                 threading.Thread(target=listen_for_peers, daemon=True).start()
                 st.rerun()
         st.stop()
 
     user = st.session_state.user
+    st.write(f"# 🪐 HUB // {user['name'].upper()}")
 
-    st.markdown(f"""
-    <div class="glass">
-    <h2>🪐 Welcome, {user['name']}</h2>
-    <p>Scanning local mesh network and AI cloud peers...</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # -------- LOCAL MESH --------
-    st.markdown("### 📶 Nearby Offline Peers")
-
+    # A. OFFLINE MESH DISCOVERY
+    st.write("### 📶 Local Mesh Nodes")
     current_time = time.time()
-    active_local = {k: v for k, v in st.session_state.local_peers.items()
-                    if current_time - v['time'] < 12}
-
+    active_local = {k: v for k, v in st.session_state.local_peers.items() if current_time - v['time'] < 12}
+    
     if active_local:
         for ip, info in active_local.items():
-            st.success(f"Detected: {info['name']} (Local Wi-Fi)")
+            st.success(f"Peer Detected via Wi-Fi Direct: **{info['name']}**")
     else:
-        st.info("Scanning network...")
+        st.info("Scanning local network for Reschedule nodes...")
 
-    # -------- KNN CLOUD MATCHING --------
-    st.markdown("### 🤖 AI Matched Peers")
-
+    # B. ONLINE KNN MATCHING
+    st.divider()
+    st.write("### 🤖 AI-Matched Peers (Cloud Sync)")
     all_interests = ["Python", "DSA", "ML", "Math", "Linear Algebra"]
-    my_focus = st.multiselect("Select your focus:", all_interests, default=["Python"])
-
+    my_focus = st.multiselect("DEFINE FOCUS:", all_interests, default=["Python"])
+    
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         all_data = conn.read(ttl=0)
-
         all_data['interests'] = all_data['interests'].fillna("")
         all_data['is_active'] = all_data['is_active'].fillna(False).astype(bool)
 
-        new_row = pd.DataFrame([{
-            "student_id": user["id"],
-            "name": user["name"],
-            "interests": ",".join(my_focus),
-            "is_active": True
-        }])
-
-        updated_df = pd.concat(
-            [all_data[all_data['student_id'] != user["id"]], new_row],
-            ignore_index=True
-        )
+        # Update Current User Status
+        new_row = pd.DataFrame([{"student_id": user["id"], "name": user["name"], "interests": ",".join(my_focus), "is_active": True}])
+        updated_df = pd.concat([all_data[all_data['student_id'] != user["id"]], new_row], ignore_index=True)
         conn.update(data=updated_df)
 
-        active_peers = all_data[
-            (all_data['is_active'] == True) &
-            (all_data['student_id'] != user['id'])
-        ]
-
+        # KNN Logic
+        active_peers = all_data[(all_data['is_active'] == True) & (all_data['student_id'] != user['id'])]
         if not active_peers.empty:
-
-            def encode(lst):
-                return [1 if i in lst.split(",") else 0 for i in all_interests]
-
+            def encode(lst): return [1 if i in lst.split(",") else 0 for i in all_interests]
             peer_vecs = [encode(p) for p in active_peers['interests']]
             my_vec = [1 if i in my_focus else 0 for i in all_interests]
-
+            
             knn = NearestNeighbors(n_neighbors=min(len(peer_vecs), 4), metric='cosine')
             knn.fit(peer_vecs)
             dist, idx = knn.kneighbors([my_vec])
-
+            
             for i, val in enumerate(idx[0]):
                 p = active_peers.iloc[val]
                 sim = round((1 - dist[0][i]) * 100, 1)
-
-                st.markdown(f"""
-                <div class="glass">
-                <h3>👤 {p["name"]}</h3>
-                <p>Similarity Score: <b>{sim}%</b></p>
-                </div>
-                """, unsafe_allow_html=True)
-
-                if st.button(f"Link with {p['name']}", key=p['student_id']):
+                st.markdown(f'<div class="prism-card">👤 {p["name"]} | Similarity: {sim}%</div>', unsafe_allow_html=True)
+                if st.button(f"⚡ LINK WITH {p['name'].split()[0]}", key=p['student_id']):
                     st.session_state.linked_peer = p['name']
                     st.session_state.page = 'success'
                     st.rerun()
-
     except:
-        st.warning("Cloud unavailable. Offline mesh mode active.")
+        st.markdown('<span class="offline-badge">OFFLINE MODE ACTIVE</span>', unsafe_allow_html=True)
+        st.warning("Internet disconnected. KNN matching suspended.")
 
-    if st.sidebar.button("Disconnect"):
+    if st.sidebar.button("🚪 GO OFFLINE"):
         st.session_state.clear()
         st.rerun()
 
-# =========================================================
-# ======================== SUCCESS =========================
-# =========================================================
-
+# --- PAGE 3: SUCCESS ---
 elif st.session_state.page == 'success':
+    st.markdown(f"<div style='text-align:center;'><h1>🚀 LINKED WITH {st.session_state.linked_peer.upper()}</h1></div>", unsafe_allow_html=True)
+    
+    # Optional: Display 3D scene again as a success celebration
+    render_spline()
 
-    st.markdown(f"""
-    <div class="glass" style="text-align:center; margin-top:150px;">
-        <h1>🚀 LINK ESTABLISHED</h1>
-        <h2>You are now connected with {st.session_state.linked_peer}</h2>
-        <p>Start collaborating and utilize your free time productively.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if st.button("Return to Hub"):
+    if st.button("RETURN"):
         st.session_state.page = 'hub'
         st.rerun()
