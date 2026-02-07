@@ -180,7 +180,7 @@ elif st.session_state.page == 'hub':
 
             # C. TRAIN KNN
             # 'brute' algorithm forces direct calculation, safer for small data
-            knn = NearestNeighbors(n_neighbors=len(active_df), metric='cosine', algorithm='brute')
+            knn = NearestNeighbors(n_neighbors=len(active_df), metric='jaccard', algorithm='brute')
             knn.fit(feature_matrix)
 
             # D. FIND CURRENT USER'S NEIGHBORS
