@@ -187,4 +187,42 @@ elif st.session_state.page == 'hub':
                                 <b style='color:#00f2fe; font-size:1.4rem;'>{peer_row['name']}</b>
                                 <span style='color: #bc8cff; font-weight:bold;'>{match_score}% MATCH</span>
                             </div>
-                            <p style='color:#8b94
+                            <p style='color:#8b949e; font-size:0.8rem; margin:10px 0;'>ID: {peer_row['student_id']}</p>
+                            <div style='margin-bottom:20px;'>{badges_html}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    if st.button(f"LINK WITH {peer_row['name'].upper()}", key=f"btn_{peer_row['student_id']}"):
+                        st.session_state.linked_peer = peer_row['name']
+                        st.session_state.page = 'success'
+                        st.rerun()
+                count += 1
+                
+    except Exception as e:
+        st.error(f"Logic Error: {e}")
+
+    with st.sidebar:
+        st.markdown("### 🛠 DIAGNOSTICS")
+        if st.checkbox("Show Raw Data Table"):
+            st.write(all_data)
+        if st.button("TERMINATE CONNECTION"):
+            st.cache_data.clear()
+            df = conn.read(ttl=0)
+            df.columns = df.columns.str.strip().str.lower()
+            df.loc[df['student_id'].astype(str) == str(user['id']), 'is_active'] = "FALSE"
+            conn.update(data=df)
+            st.session_state.clear()
+            st.rerun()
+
+# --- PAGE 3: SUCCESS ---
+elif st.session_state.page == 'success':
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    st.markdown(f"""
+        <div style='text-align: center; border: 2px solid #00f2fe; padding: 50px; border-radius: 20px; background: rgba(0, 242, 254, 0.05);'>
+            <h1 style='font-size: 4rem;'>UPLINK ESTABLISHED</h1>
+            <p style='font-size: 1.5rem;'>Matched with <b style='color:#bc8cff;'>{st.session_state.linked_peer.upper()}</b></p>
+        </div>
+    """, unsafe_allow_html=True)
+    if st.button("RETURN TO HUB"):
+        st.session_state.page = 'hub'
+        st.rerun()
