@@ -39,7 +39,7 @@ st.markdown("""
         margin-bottom: 20px;
         transition: all 0.4s ease;
         backdrop-filter: blur(10px);
-        min-height: 220px;
+        min-height: 250px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -81,13 +81,7 @@ st.markdown("""
         border-radius: 8px !important;
         font-family: 'JetBrains Mono' !important;
         font-weight: 700 !important;
-        transition: 0.3s;
         width: 100%;
-    }
-
-    .stButton > button:hover {
-        background: rgba(0, 242, 254, 0.1) !important;
-        box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -97,7 +91,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 if 'page' not in st.session_state: st.session_state.page = 'gate'
 
-# --- PAGE 1: THE GATEWAY ---
+# --- PAGE 1: GATEWAY ---
 if st.session_state.page == 'gate':
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 1])
@@ -109,7 +103,7 @@ if st.session_state.page == 'gate':
             st.session_state.page = 'hub'
             st.rerun()
 
-# --- PAGE 2: THE HUB ---
+# --- PAGE 2: HUB ---
 elif st.session_state.page == 'hub':
     if 'user' not in st.session_state:
         c1, c2, c3 = st.columns([1, 1.5, 1])
@@ -128,21 +122,23 @@ elif st.session_state.page == 'hub':
                     try:
                         st.cache_data.clear()
                         df = conn.read(ttl=0)
+                        # CRITICAL: Clean column names
                         df.columns = df.columns.str.strip().str.lower()
+                        
                         sid_str = str(sid).strip()
                         interest_str = ", ".join(interests)
                         
                         mask = df['student_id'].astype(str) == sid_str
                         if not df.empty and mask.any():
                             df.loc[mask, 'is_active'] = "TRUE"
-                            df.loc[mask, 'name'] = nick
+                            df.loc[mask, 'name'] = str(nick)
                             df.loc[mask, 'interests'] = interest_str
                         else:
-                            new_user = pd.DataFrame([{"student_id": sid_str, "name": nick, "is_active": "TRUE", "interests": interest_str}])
+                            new_user = pd.DataFrame([{"student_id": sid_str, "name": str(nick), "is_active": "TRUE", "interests": interest_str}])
                             df = pd.concat([df, new_user], ignore_index=True)
                         
                         conn.update(data=df)
-                        st.session_state.user = {"id": sid_str, "name": nick}
+                        st.session_state.user = {"id": sid_str, "name": str(nick)}
                         st.rerun()
                     except Exception as e:
                         st.error(f"Write Error: {e}")
@@ -150,7 +146,7 @@ elif st.session_state.page == 'hub':
 
     # --- MAIN INTERFACE ---
     user = st.session_state.user
-    st.markdown(f"<h1>SYSTEM HUB // <span style='color:#bc8cff;'>{user['name'].upper()}</span></h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1>SYSTEM HUB // <span style='color:#bc8cff;'>{str(user['name']).upper()}</span></h1>", unsafe_allow_html=True)
 
     if st.button("🔄 SYNCHRONIZE ACTIVE NODES"):
         st.cache_data.clear()
@@ -159,11 +155,15 @@ elif st.session_state.page == 'hub':
     try:
         all_data = conn.read(ttl=0)
         all_data.columns = all_data.columns.str.strip().str.lower()
-        all_data['status_check'] = all_data['is_active'].astype(str).str.strip().str.upper()
-        active_df = all_data[all_data['status_check'] == "TRUE"].copy().reset_index(drop=True)
+        
+        # NORMALIZATION: Ensure 'name' and 'is_active' are usable strings
+        all_data['name'] = all_data['name'].fillna("Unknown User").astype(str)
+        all_data['is_active'] = all_data['is_active'].astype(str).str.strip().str.upper()
+        
+        active_df = all_data[all_data['is_active'] == "TRUE"].copy().reset_index(drop=True)
 
         if len(active_df) < 2:
-             st.info("📡 SCANNING... No other nodes detected. Wait for peers to join.")
+             st.info("📡 SCANNING... Waiting for peers to join.")
         else:
             # KNN Logic
             active_df['interests_clean'] = active_df['interests'].astype(str).str.lower().apply(
@@ -181,11 +181,14 @@ elif st.session_state.page == 'hub':
             cols = st.columns(3)
             
             count = 0
-            # Skip self (index 0)
             for i, neighbor_idx in enumerate(indices[0][1:]):
                 peer_row = active_df.iloc[neighbor_idx]
                 
-                # Percent Calculation: Match = (1 - distance) * 100
+                # PREVENT BLANK NAMES: Extract and format
+                display_name = str(peer_row['name']).strip()
+                if not display_name or display_name == "nan":
+                    display_name = "ANONYMOUS NODE"
+                
                 dist = distances[0][i+1]
                 match_score = int((1 - dist) * 100)
                 
@@ -193,35 +196,34 @@ elif st.session_state.page == 'hub':
                 badges_html = "".join([f"<span class='badge'>{x}</span>" for x in display_tags])
                 
                 with cols[count % 3]:
-                    # The name and percentage are now clearly displayed here
                     st.markdown(f"""
                         <div class='node-card'>
                             <div>
-                                <div style='display: flex; justify-content: space-between; align-items: center;'>
-                                    <b style='color:#00f2fe; font-size:1.4rem;'>{peer_row['name'].upper()}</b>
-                                    <span class='match-percent'>{match_score}% MATCH</span>
+                                <div style='display: flex; justify-content: space-between; align-items: start;'>
+                                    <b style='color:#00f2fe; font-size:1.4rem;'>{display_name.upper()}</b>
+                                    <span class='match-percent'>{match_score}%</span>
                                 </div>
-                                <p style='color:#8b949e; font-size:0.8rem; margin:10px 0;'>NODE ID: {peer_row['student_id']}</p>
-                                <div style='margin-bottom:20px;'>{badges_html}</div>
+                                <p style='color:#8b949e; font-size:0.7rem; margin:5px 0;'>ID: {peer_row['student_id']}</p>
+                                <div style='margin-top:10px;'>{badges_html}</div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    if st.button(f"LINK WITH {peer_row['name'].upper()}", key=f"btn_{peer_row['student_id']}"):
-                        st.session_state.linked_peer = peer_row['name']
+                    if st.button(f"LINK WITH {display_name.upper()}", key=f"btn_{peer_row['student_id']}"):
+                        st.session_state.linked_peer = display_name
                         st.session_state.page = 'success'
                         st.rerun()
                 count += 1
                 
     except Exception as e:
-        st.error(f"Read Error: {e}")
+        st.error(f"Display Error: {e}")
 
 # --- PAGE 3: SUCCESS ---
 elif st.session_state.page == 'success':
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     st.markdown(f"""
         <div style='text-align: center; border: 2px solid #00f2fe; padding: 50px; border-radius: 20px; background: rgba(0, 242, 254, 0.05);'>
-            <h1 style='font-size: 4rem;' class='hud-header'>UPLINK ESTABLISHED</h1>
+            <h1 class='hud-header' style='font-size: 4rem;'>UPLINK ESTABLISHED</h1>
             <p style='font-size: 1.5rem;'>Matched with <b style='color:#bc8cff;'>{st.session_state.linked_peer.upper()}</b></p>
         </div>
     """, unsafe_allow_html=True)
