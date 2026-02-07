@@ -1,6 +1,8 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import MultiLabelBinarizer
 
 # 1. ARCHITECTURAL CONFIG
 st.set_page_config(
@@ -100,6 +102,7 @@ if st.session_state.page == 'gate':
 
 # --- PAGE 2: THE HUB ---
 elif st.session_state.page == 'hub':
+    # --- AUTHENTICATION BLOCK ---
     if 'user' not in st.session_state:
         c1, c2, c3 = st.columns([1, 1.5, 1])
         with c2:
@@ -109,13 +112,12 @@ elif st.session_state.page == 'hub':
                 nick = st.text_input("ALIAS", placeholder="Choose a display name")
                 interests = st.multiselect(
                     "CORE EXPERTISE", 
-                    ["Python", "ML", "DSA", "Maths", "Web Dev", "Cybersec", "AI"],
+                    ["Python", "ML", "DSA", "Maths", "Web Dev", "Cybersec", "AI", "Blockchain", "Design"],
                     default=["Python"]
                 )
                 
                 if st.form_submit_button("ESTABLISH CONNECTION"):
                     try:
-                        # Clear cache BEFORE reading to ensure fresh data
                         st.cache_data.clear()
                         df = conn.read(ttl=0)
                         df.columns = df.columns.str.strip().str.lower()
@@ -123,10 +125,12 @@ elif st.session_state.page == 'hub':
                         interest_str = ", ".join(interests)
                         
                         if not df.empty and sid_str in df['student_id'].astype(str).values:
+                            # Update existing user
                             df.loc[df['student_id'].astype(str) == sid_str, 'is_active'] = "TRUE"
                             df.loc[df['student_id'].astype(str) == sid_str, 'name'] = nick
                             df.loc[df['student_id'].astype(str) == sid_str, 'interests'] = interest_str
                         else:
+                            # Create new user
                             new_user = pd.DataFrame([{"student_id": sid_str, "name": nick, "is_active": "TRUE", "interests": interest_str}])
                             df = pd.concat([df, new_user], ignore_index=True)
                         
@@ -137,64 +141,88 @@ elif st.session_state.page == 'hub':
                         st.error(f"Write Error: {e}")
         st.stop()
 
+    # --- MAIN INTERFACE BLOCK ---
     user = st.session_state.user
     st.markdown(f"<h1>SYSTEM HUB // <span style='color:#bc8cff;'>{user['name'].upper()}</span></h1>", unsafe_allow_html=True)
 
-    # --- CRITICAL REFRESH LOGIC ---
     if st.button("🔄 SYNCHRONIZE ACTIVE NODES"):
         st.cache_data.clear()
         st.rerun()
 
     try:
-        # Load data with forced no-cache
+        # 1. LOAD DATA
         all_data = conn.read(ttl=0)
         all_data.columns = all_data.columns.str.strip().str.lower()
         
-        if not all_data.empty:
-            # Force status to clean string uppercase to match 'TRUE'
-            all_data['status_check'] = all_data['is_active'].astype(str).str.strip().str.upper()
+        # 2. FILTER FOR ACTIVE USERS
+        all_data['status_check'] = all_data['is_active'].astype(str).str.strip().str.upper()
+        # We need the current user inside this dataframe to calculate relative distance
+        active_df = all_data[all_data['status_check'] == "TRUE"].copy().reset_index(drop=True)
+
+        if len(active_df) < 2:
+             st.info("📡 SCANNING... No other nodes detected. Wait for peers to join.")
+        else:
+            # --- KNN ALGORITHM IMPLEMENTATION ---
             
-            # 1. Filter out the current user (you won't see yourself)
-            # 2. Filter for those who are strictly "TRUE"
-            peers = all_data[
-                (all_data['student_id'].astype(str) != str(user['id'])) & 
-                (all_data['status_check'] == "TRUE")
-            ]
+            # A. PREPARE DATA: Clean and split interests into lists
+            active_df['interests_clean'] = active_df['interests'].fillna("").astype(str).str.split(", ")
 
-            st.markdown(f"### 🤖 DETECTED PEER NODES ({len(peers)})")
+            # B. ENCODE DATA: MultiLabelBinarizer (Text -> Matrix)
+            mlb = MultiLabelBinarizer()
+            feature_matrix = mlb.fit_transform(active_df['interests_clean'])
 
-            if not peers.empty:
-                cols = st.columns(3)
-                for idx, row in enumerate(peers.iterrows()):
-                    with cols[idx % 3]:
-                        raw_interests = str(row[1]['interests']).split(", ")
-                        badges_html = "".join([f"<span class='badge'>{i}</span>" for i in raw_interests])
-                        
-                        st.markdown(f"""
-                            <div class='node-card'>
-                                <div style='display: flex; justify-content: space-between;'>
-                                    <b style='color:#00f2fe; font-size:1.4rem;'>{row[1]['name']}</b>
-                                    <span style='color: #00f2fe;'>● LIVE</span>
-                                </div>
-                                <p style='color:#8b949e; font-size:0.8rem; margin:10px 0;'>ID: {row[1]['student_id']}</p>
-                                <div style='margin-bottom:20px;'>{badges_html}</div>
+            # C. TRAIN KNN
+            # metric='jaccard' is ideal for set overlapping
+            knn = NearestNeighbors(n_neighbors=len(active_df), metric='jaccard')
+            knn.fit(feature_matrix)
+
+            # D. FIND CURRENT USER'S NEIGHBORS
+            curr_user_idx = active_df[active_df['student_id'].astype(str) == str(user['id'])].index[0]
+            distances, indices = knn.kneighbors([feature_matrix[curr_user_idx]])
+
+            # --- DISPLAY RESULTS ---
+            st.markdown(f"### 🤖 RECOMMENDED PEER NODES (AI RANKED)")
+            
+            cols = st.columns(3)
+            
+            # indices[0] contains the sorted indexes. 
+            # We skip [0] because that is the user themselves.
+            count = 0
+            for i, neighbor_idx in enumerate(indices[0][1:]):
+                peer_row = active_df.iloc[neighbor_idx]
+                
+                # Calculate Match Score (1 - Distance) * 100
+                # Jaccard distance is 0 for identical, 1 for different.
+                match_score = int((1 - distances[0][i+1]) * 100)
+                
+                # Format Badges
+                raw_interests = peer_row['interests_clean']
+                badges_html = "".join([f"<span class='badge'>{x}</span>" for x in raw_interests])
+                
+                with cols[count % 3]:
+                    st.markdown(f"""
+                        <div class='node-card'>
+                            <div style='display: flex; justify-content: space-between;'>
+                                <b style='color:#00f2fe; font-size:1.4rem;'>{peer_row['name']}</b>
+                                <span style='color: #bc8cff; font-weight:bold;'>{match_score}% MATCH</span>
                             </div>
-                        """, unsafe_allow_html=True)
-                        if st.button(f"LINK WITH {row[1]['name'].upper()}", key=f"btn_{row[1]['student_id']}"):
-                            st.session_state.linked_peer = row[1]['name']
-                            st.session_state.page = 'success'
-                            st.rerun()
-            else:
-                st.info("Searching for nodes... Open this URL in an Incognito window and log in with a **different ID** to see a peer appear.")
+                            <p style='color:#8b949e; font-size:0.8rem; margin:10px 0;'>ID: {peer_row['student_id']}</p>
+                            <div style='margin-bottom:20px;'>{badges_html}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    if st.button(f"LINK WITH {peer_row['name'].upper()}", key=f"btn_{peer_row['student_id']}"):
+                        st.session_state.linked_peer = peer_row['name']
+                        st.session_state.page = 'success'
+                        st.rerun()
+                count += 1
                 
     except Exception as e:
         st.error(f"Read Error: {e}")
 
     with st.sidebar:
         st.markdown("### 🛠️ DIAGNOSTICS")
-        # Use this to check if the data is actually reaching your app
         if st.checkbox("DEBUG: View All Network Rows"):
-            st.write("Raw data from Google Sheets:")
             st.dataframe(all_data)
             
         if st.button("TERMINATE CONNECTION"):
