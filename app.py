@@ -252,4 +252,4 @@ elif st.session_state.page == 'success':
     """, unsafe_allow_html=True)
     if st.button("RETURN TO HUB"):
         st.session_state.page = 'hub'
-        st.rerun(
+        st.rerun()
