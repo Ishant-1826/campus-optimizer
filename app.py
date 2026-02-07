@@ -111,10 +111,13 @@ elif st.session_state.page == 'hub':
                         st.cache_data.clear()
                         df = conn.read(ttl=0)
                         df.columns = df.columns.str.strip().str.lower()
+                        
+                        # Data Cleaning: Convert existing 1/0 to TRUE/FALSE strings
+                        df['is_active'] = df['is_active'].astype(str).str.replace('1', 'TRUE').str.replace('0', 'FALSE').str.upper()
+                        
                         sid_str = str(sid).strip()
                         interest_str = ", ".join(interests)
                         
-                        # FORCE UPDATE TO "TRUE"
                         if not df.empty and sid_str in df['student_id'].astype(str).values:
                             mask = df['student_id'].astype(str) == sid_str
                             df.loc[mask, 'is_active'] = "TRUE"
@@ -128,6 +131,9 @@ elif st.session_state.page == 'hub':
                                 "interests": interest_str
                             }])
                             df = pd.concat([df, new_user], ignore_index=True)
+                        
+                        # Final check before update to ensure no 1/0 is sent
+                        df['is_active'] = df['is_active'].astype(str).str.upper()
                         
                         conn.update(data=df)
                         st.cache_data.clear()
@@ -149,12 +155,14 @@ elif st.session_state.page == 'hub':
         all_data = conn.read(ttl=0)
         all_data.columns = all_data.columns.str.strip().str.lower()
         
-        # FLEXIBLE FILTER: Handles "TRUE", "true", "1", 1 (int)
-        all_data['status_check'] = all_data['is_active'].astype(str).str.strip().str.upper()
-        active_df = all_data[all_data['status_check'].isin(["TRUE", "1"])].copy().reset_index(drop=True)
+        # Cleanup Column D for UI and Logic
+        all_data['is_active'] = all_data['is_active'].astype(str).str.strip().str.upper()
+        all_data['is_active'] = all_data['is_active'].replace({'1': 'TRUE', '0': 'FALSE', '1.0': 'TRUE', '0.0': 'FALSE'})
+        
+        active_df = all_data[all_data['is_active'] == "TRUE"].copy().reset_index(drop=True)
 
         if len(active_df) < 2:
-             st.info("📡 SCANNING... No other active nodes detected. Ensure others are marked 'TRUE' in Sheets.")
+             st.info("📡 SCANNING... No other active nodes detected.")
         else:
             # KNN Logic
             active_df['interests_clean'] = active_df['interests'].astype(str).str.lower().apply(
@@ -172,7 +180,6 @@ elif st.session_state.page == 'hub':
             cols = st.columns(3)
             count = 0
             
-            # Show top matches excluding self
             for i, neighbor_idx in enumerate(indices[0][1:]):
                 peer_row = active_df.iloc[neighbor_idx]
                 dist = distances[0][i+1]
@@ -199,12 +206,12 @@ elif st.session_state.page == 'hub':
                 count += 1
                 
     except Exception as e:
-        st.error(f"Logic Error: {e}")
+        st.error(f"System Error: {e}")
 
     with st.sidebar:
         st.markdown("### 🛠 DIAGNOSTICS")
-        if st.checkbox("Show Raw Data Table"):
-            st.write(all_data)
+        if st.checkbox("Show Network Data (Internal View)"):
+            st.dataframe(all_data)
         if st.button("TERMINATE CONNECTION"):
             st.cache_data.clear()
             df = conn.read(ttl=0)
