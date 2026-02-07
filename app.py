@@ -6,7 +6,7 @@ from sklearn.preprocessing import MultiLabelBinarizer
 
 # 1. ARCHITECTURAL CONFIG
 st.set_page_config(
-    page_title="AI-LINK // Resource Protocol", 
+    page_title="Reschedule // Resource Protocol", 
     page_icon="📡", 
     layout="wide"
 )
