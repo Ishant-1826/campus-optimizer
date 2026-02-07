@@ -2,11 +2,11 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from streamlit_gsheets import GSheetsConnection
-import time
 from datetime import datetime
+import socket
 
 # --- CONFIGURATION & THEME ---
-st.set_page_config(page_title="AI-LINK // SECTION-A", page_icon="決", layout="wide")
+st.set_page_config(page_title="AI-LINK // SECTION-A", page_icon="📡", layout="wide")
 
 # Inject Cyber-Grid CSS
 st.markdown("""
@@ -24,63 +24,82 @@ st.markdown("""
         padding: 20px; border-radius: 10px;
         margin-bottom: 10px;
     }
-    h1, h2, h3 { font-family: 'Courier New', monospace; letter-spacing: 2px; }
+    code { color: #00f2fe; background: transparent; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SESSION STATE INITIALIZATION ---
+# --- SESSION STATE ---
 if 'page' not in st.session_state:
     st.session_state.page = 'hub'
 if 'offline_mode' not in st.session_state:
     st.session_state.offline_mode = False
 
-# --- UTILITY FUNCTIONS ---
+# --- SYSTEM UTILITIES ---
+def get_local_id():
+    # Generates a unique ID from your local machine name for offline discovery
+    return socket.gethostname().upper()
+
 def get_current_day():
     return datetime.now().strftime("%a").upper()
 
-# --- SIDEBAR DIAGNOSTICS ---
+# --- SIDEBAR CONTROL ---
 with st.sidebar:
-    st.markdown("## 識 SYSTEM CONTROL")
+    st.markdown("## 🛠 SYSTEM CONTROL")
     st.session_state.offline_mode = st.toggle("OFFLINE MODE (Bluetooth)", value=st.session_state.offline_mode)
     
-    if st.session_state.offline_mode:
-        st.warning("決 BLUETOOTH MESH ACTIVE\nData syncing locally.")
-    else:
-        st.success("決 SATELLITE LINK ACTIVE\nConnected to GSheets.")
+    st.markdown("---")
+    if st.button("📡 MAIN HUB"): st.session_state.page = 'hub'
+    if st.button("📅 TIMETABLE"): st.session_state.page = 'timetable'
     
     st.markdown("---")
-    if st.button("MAIN HUB"): st.session_state.page = 'hub'
-    if st.button("TIMETABLE"): st.session_state.page = 'timetable'
+    st.markdown(f"**LOCAL NODE:** `{get_local_id()}`")
+    st.caption("Status: Discoverable via Mesh")
 
 # --- PAGE 1: HUB (AI-LINK) ---
 if st.session_state.page == 'hub':
     st.markdown("<h1>AI-LINK // <span style='color:#00f2fe;'>PROXIMITY NODES</span></h1>", unsafe_allow_html=True)
     
     if not st.session_state.offline_mode:
+        st.subheader("Global Spreadsheet Link")
         try:
             conn = st.connection("gsheets", type=GSheetsConnection)
             df = conn.read()
             st.dataframe(df, use_container_width=True)
+            st.info("Note: If your ID is missing from the sheet, use Offline Mode to broadcast locally.")
         except Exception:
-            st.error("Connection Lost. Please switch to Offline Mode.")
-    else:
-        st.info("Scanning for nearby Bluetooth nodes in Section-A...")
-        st.progress(65, text="Searching 2.4GHz spectrum...")
-        # Placeholder for local discovery logic
-        st.markdown("""
-        <div class='node-card'>
-            <p style='color:#8b949e;'>[BLUETOOTH VIRTUAL TERMINAL]</p>
-            <code> > Peer detected: Node_ID_2488 (Dist: 2.4m)</code><br>
-            <code> > Peer detected: Node_ID_1092 (Dist: 5.1m)</code>
-        </div>
-        """, unsafe_allow_html=True)
+            st.warning("Spreadsheet Unreachable. Switching to Local Discovery.")
+            st.session_state.offline_mode = True
+            st.rerun()
+    
+    if st.session_state.offline_mode:
+        st.subheader("Local Bluetooth Mesh (Offline)")
+        st.info(f"Broadcasting Node ID: {get_local_id()}")
+        
+        # Simulated Peer Discovery Logic
+        peers = [
+            {"Node": "SEC-A-ALPHA", "Signal": "Strong", "Activity": "In DSA Lab"},
+            {"Node": "SEC-A-BRAVO", "Signal": "Weak", "Activity": "Idle"},
+            {"Node": get_local_id(), "Signal": "Self", "Activity": "Broadcasting"}
+        ]
+        
+        for peer in peers:
+            color = "#00f2fe" if peer['Node'] == get_local_id() else "#8b949e"
+            st.markdown(f"""
+                <div class='node-card' style='border-left: 4px solid {color};'>
+                    <div style='display: flex; justify-content: space-between;'>
+                        <span style='color:{color}; font-weight:bold;'>{peer['Node']}</span>
+                        <span style='font-size: 0.8rem;'>Signal: {peer['Signal']}</span>
+                    </div>
+                    <div style='color: #8b949e; font-size: 0.9rem;'>Status: {peer['Activity']}</div>
+                </div>
+            """, unsafe_allow_html=True)
 
 # --- PAGE 2: TIMETABLE PROTOCOL ---
 elif st.session_state.page == 'timetable':
     current_day = get_current_day()
-    st.markdown(f"<h1>IIIT KOTA // <span style='color:#00f2fe;'>SECTION-A SCHEDULE</span></h1>", unsafe_allow_html=True)
+    st.markdown("<h1>IIIT KOTA // <span style='color:#00f2fe;'>SECTION-A SCHEDULE</span></h1>", unsafe_allow_html=True)
     
-    # Timetable Data from your PDF
+    # Official Schedule Mapping from your PDF
     tt_data = {
         "MON": ["09:00 - FDE (L)", "10:00 - DSA (L)", "11:00 - DSA (L)", "14:00 - DM (T)"],
         "TUE": ["09:00 - DM (L)", "10:00 - DLD (L)", "11:00 - DLD (L)", "15:00 - DM (T)"],
@@ -90,54 +109,54 @@ elif st.session_state.page == 'timetable':
     }
 
     cols = st.columns(5)
-    days = list(tt_data.keys())
+    days = ["MON", "TUE", "WED", "THU", "FRI"]
     
     for i, col in enumerate(cols):
         day = days[i]
         is_today = (day == current_day)
-        border_color = "#00f2fe" if is_today else "rgba(0, 242, 254, 0.2)"
-        bg_alpha = "0.1" if is_today else "0.05"
+        border = "2px solid #00f2fe" if is_today else "1px solid rgba(0, 242, 254, 0.2)"
         
         with col:
             st.markdown(f"""
-                <div style='background: rgba(0, 242, 254, {bg_alpha}); border: 2px solid {border_color}; 
-                padding: 12px; border-radius: 8px; text-align: center;'>
-                    <strong style='color:{border_color};'>{"焚 " if is_today else ""}{day}</strong>
+                <div style='background: rgba(0, 242, 254, 0.05); border: {border}; 
+                padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 10px;'>
+                    <strong style='color:#00f2fe;'>{day}</strong>
                 </div>
             """, unsafe_allow_html=True)
-            for slot in tt_data.get(day, ["OFF"]):
-                st.caption(f"敵 {slot}")
+            for slot in tt_data.get(day, []):
+                st.caption(f"🕒 {slot}")
 
     st.write("---")
     
-    # Offline Info
-    if st.session_state.offline_mode:
-        st.caption("決 Schedule loaded from local cache. Bluetooth sync enabled for peer status.")
-
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown(f"""
+        st.markdown("""
             <div class='node-card' style='border-left: 4px solid #00f2fe;'>
-                <h4 style='color:#00f2fe;'>CORE SUBJECTS</h4>
-                <p style='font-size: 0.85rem; color: #8b949e;'>
-                    <b>CST102:</b> Data Structures & Algos<br>
-                    <b>MAT102:</b> Discrete Mathematics<br>
-                    <b>ECT102:</b> Digital Logic Design
+                <h4 style='color:#00f2fe;'>COURSE CODES</h4>
+                <p style='font-size: 0.8rem;'>
+                    <b>FDE:</b> Foundations of Data Engineering<br>
+                    <b>DSA:</b> Data Structures & Algorithms<br>
+                    <b>DM:</b> Discrete Mathematics<br>
+                    <b>DLD:</b> Digital Logic Design
                 </p>
             </div>
         """, unsafe_allow_html=True)
     with c2:
-        st.markdown(f"""
+        st.markdown("""
             <div class='node-card' style='border-left: 4px solid #bc8cff;'>
-                <h4 style='color:#bc8cff;'>LOCATION DATA</h4>
-                <p style='font-size: 0.85rem; color: #8b949e;'>
-                    <b>Lecture Hall:</b> Refer to IIITK Notice<br>
-                    <b>Labs:</b> Computer Center 1 & 2<br>
-                    <b>Tutorials:</b> Assigned Tutorial Rooms
+                <h4 style='color:#bc8cff;'>LAB LOCATIONS</h4>
+                <p style='font-size: 0.8rem;'>
+                    <b>DSA & Python:</b> Computer Center (CC)<br>
+                    <b>TW-LAB:</b> Technical Writing Center<br>
+                    <b>Tutorials:</b> Check LH-1/LH-2
                 </p>
             </div>
         """, unsafe_allow_html=True)
 
+    if st.button("BACK TO HUB"):
+        st.session_state.page = 'hub'
+        st.rerun()
+
 # --- FOOTER ---
 st.markdown("---")
-st.caption("AI-LINK V2.0 // DEVELOPED FOR IIIT KOTA SECTION-A // 2026")
+st.caption("SYSTEM: ONLINE // ENCRYPTION: ACTIVE // SECTION-A PROTOCOL")
