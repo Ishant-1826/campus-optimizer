@@ -157,7 +157,7 @@ elif st.session_state.page == 'success':
     st.markdown(f"<div style='text-align:center;'><h1>🚀 LINKED WITH {st.session_state.linked_peer.upper()}</h1></div>", unsafe_allow_html=True)
     
 
-[Image of K-Nearest Neighbors diagram]
+#  [Image of K-Nearest Neighbors diagram]
 
     if st.button("RETURN"):
         st.session_state.page = 'hub'
