@@ -30,7 +30,6 @@ def spline_background():
         pointer-events: none;
     }
     </style>
-
     <iframe src="https://my.spline.design/scene-APLWNQ6NOdTkkMLi/"></iframe>
     """, height=0)
 
@@ -39,17 +38,10 @@ spline_background()
 # ---------------- GLOBAL CSS ----------------
 st.markdown("""
 <style>
-
-/* Hide Streamlit UI */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
-
-.stApp {
-    background: transparent;
-}
-
-/* Gradient headings */
+.stApp { background: transparent; }
 h1, h2, h3 {
     font-family: 'Inter', sans-serif;
     font-weight: 800 !important;
@@ -57,8 +49,6 @@ h1, h2, h3 {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
-
-/* Glass cards */
 .glass {
     background: rgba(20, 25, 35, 0.45);
     backdrop-filter: blur(18px);
@@ -68,8 +58,6 @@ h1, h2, h3 {
     margin-bottom: 20px;
     box-shadow: 0 0 30px rgba(123,156,255,0.15);
 }
-
-/* Buttons */
 .stButton>button {
     background: linear-gradient(135deg,#00f2fe,#bc8cff);
     color: black;
@@ -79,32 +67,11 @@ h1, h2, h3 {
     border: none;
     transition: 0.25s;
 }
-
 .stButton>button:hover {
     transform: scale(1.05);
     box-shadow: 0 0 25px #7b9cff;
 }
-
-/* Inputs */
-.stTextInput>div>div>input {
-    background: rgba(0,0,0,0.45);
-    color: white;
-    border-radius: 10px;
-}
-
-/* Multiselect */
-.stMultiSelect>div>div {
-    background: rgba(0,0,0,0.45);
-    border-radius: 10px;
-}
-
-/* Success badge */
-.status {
-    color:#00f2fe;
-    font-weight:600;
-    font-size:18px;
-}
-
+.status { color:#00f2fe; font-weight:600; font-size:18px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -126,57 +93,46 @@ def start_broadcast(name):
 
 def listen_for_peers():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(('', UDP_PORT))
-    while True:
-        data, addr = sock.recvfrom(1024)
-        msg = data.decode()
-        if msg.startswith("RESCHEDULE_PEER:"):
-            peer_name = msg.split(":")[1]
-            st.session_state.local_peers[addr[0]] = {
-                "name": peer_name,
-                "time": time.time()
-            }
+    try:
+        sock.bind(('', UDP_PORT))
+        while True:
+            data, addr = sock.recvfrom(1024)
+            msg = data.decode()
+            if msg.startswith("RESCHEDULE_PEER:"):
+                peer_name = msg.split(":")[1]
+                st.session_state.local_peers[addr[0]] = {
+                    "name": peer_name,
+                    "time": time.time()
+                }
+    except:
+        pass
 
 # ---------------- PAGE ROUTING ----------------
 if 'page' not in st.session_state:
     st.session_state.page = 'gate'
 
-# =========================================================
 # ======================= GATEWAY ==========================
-# =========================================================
-
 if st.session_state.page == 'gate':
-
     st.markdown("""
     <div class="glass" style="text-align:center; margin-top:120px;">
         <h1 style="font-size:60px;">RESCHEDULE AI-LINK</h1>
         <p style="color:#c9d1d9; font-size:18px;">
-        Real-time peer matching system that detects free students
-        and connects collaborators automatically across campus.
+        Real-time peer matching system that detects free students.
         </p>
     </div>
     """, unsafe_allow_html=True)
 
-    st.write("")
-
     col1, col2, col3 = st.columns([1,2,1])
-
     with col2:
         is_free = st.toggle("I am available now", key="gate_toggle")
-
         if is_free:
             st.markdown('<p class="status">● Discoverable to peers</p>', unsafe_allow_html=True)
-
             if st.button("ENTER HUB"):
                 st.session_state.page = 'hub'
                 st.rerun()
 
-# =========================================================
 # ========================= HUB ============================
-# =========================================================
-
 elif st.session_state.page == 'hub':
-
     if 'user' not in st.session_state:
         with st.form("id"):
             st.markdown('<div class="glass">', unsafe_allow_html=True)
@@ -184,31 +140,21 @@ elif st.session_state.page == 'hub':
             name = st.text_input("Nickname")
             submit = st.form_submit_button("Connect to Network")
             st.markdown('</div>', unsafe_allow_html=True)
-
             if submit:
                 st.session_state.user = {"id": sid, "name": name}
-
                 threading.Thread(target=start_broadcast, args=(name,), daemon=True).start()
                 threading.Thread(target=listen_for_peers, daemon=True).start()
                 st.rerun()
         st.stop()
 
     user = st.session_state.user
-
-    st.markdown(f"""
-    <div class="glass">
-    <h2>🪐 Welcome, {user['name']}</h2>
-    <p>Scanning local mesh network and AI cloud peers...</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="glass"><h2>🪐 Welcome, {user["name"]}</h2></div>', unsafe_allow_html=True)
 
     # -------- LOCAL MESH --------
     st.markdown("### 📶 Nearby Offline Peers")
-
     current_time = time.time()
-    active_local = {k: v for k, v in st.session_state.local_peers.items()
-                    if current_time - v['time'] < 12}
-
+    active_local = {k: v for k, v in st.session_state.local_peers.items() if current_time - v['time'] < 12}
+    
     if active_local:
         for ip, info in active_local.items():
             st.success(f"Detected: {info['name']} (Local Wi-Fi)")
@@ -217,7 +163,6 @@ elif st.session_state.page == 'hub':
 
     # -------- KNN CLOUD MATCHING --------
     st.markdown("### 🤖 AI Matched Peers")
-
     all_interests = ["Python", "DSA", "ML", "Math", "Linear Algebra"]
     my_focus = st.multiselect("Select your focus:", all_interests, default=["Python"])
 
@@ -225,32 +170,36 @@ elif st.session_state.page == 'hub':
         conn = st.connection("gsheets", type=GSheetsConnection)
         all_data = conn.read(ttl=0)
 
+        # Ensure required columns exist
+        for col in ['student_id', 'interests', 'is_active', 'last_seen']:
+            if col not in all_data.columns:
+                all_data[col] = None
+
         all_data['interests'] = all_data['interests'].fillna("")
         all_data['is_active'] = all_data['is_active'].fillna(False).astype(bool)
+        all_data['last_seen'] = pd.to_numeric(all_data['last_seen'], errors='coerce').fillna(0)
 
+        # Update current user's status with heartbeat (last_seen)
         new_row = pd.DataFrame([{
             "student_id": user["id"],
             "name": user["name"],
             "interests": ",".join(my_focus),
-            "is_active": True
+            "is_active": True,
+            "last_seen": time.time()
         }])
 
-        updated_df = pd.concat(
-            [all_data[all_data['student_id'] != user["id"]], new_row],
-            ignore_index=True
-        )
+        updated_df = pd.concat([all_data[all_data['student_id'] != user["id"]], new_row], ignore_index=True)
         conn.update(data=updated_df)
 
+        # FILTER: Show only users active in the last 60 seconds (prevents zombie users)
         active_peers = all_data[
-            (all_data['is_active'] == True) &
-            (all_data['student_id'] != user['id'])
+            (all_data['is_active'] == True) & 
+            (all_data['student_id'] != user['id']) & 
+            (time.time() - all_data['last_seen'] < 60)
         ]
 
         if not active_peers.empty:
-
-            def encode(lst):
-                return [1 if i in lst.split(",") else 0 for i in all_interests]
-
+            def encode(lst): return [1 if i in lst.split(",") else 0 for i in all_interests]
             peer_vecs = [encode(p) for p in active_peers['interests']]
             my_vec = [1 if i in my_focus else 0 for i in all_interests]
 
@@ -261,40 +210,30 @@ elif st.session_state.page == 'hub':
             for i, val in enumerate(idx[0]):
                 p = active_peers.iloc[val]
                 sim = round((1 - dist[0][i]) * 100, 1)
-
-                st.markdown(f"""
-                <div class="glass">
-                <h3>👤 {p["name"]}</h3>
-                <p>Similarity Score: <b>{sim}%</b></p>
-                </div>
-                """, unsafe_allow_html=True)
-
+                st.markdown(f'<div class="glass"><h3>👤 {p["name"]}</h3><p>Similarity: <b>{sim}%</b></p></div>', unsafe_allow_html=True)
                 if st.button(f"Link with {p['name']}", key=p['student_id']):
                     st.session_state.linked_peer = p['name']
                     st.session_state.page = 'success'
                     st.rerun()
+        else:
+            st.write("No active peers found in the last minute.")
 
-    except:
-        st.warning("Cloud unavailable. Offline mesh mode active.")
+    except Exception as e:
+        st.error(f"Cloud Error: {e}")
+        st.warning("Offline mesh mode active.")
 
     if st.sidebar.button("Disconnect"):
         st.session_state.clear()
         st.rerun()
 
-# =========================================================
 # ======================== SUCCESS =========================
-# =========================================================
-
 elif st.session_state.page == 'success':
-
     st.markdown(f"""
     <div class="glass" style="text-align:center; margin-top:150px;">
         <h1>🚀 LINK ESTABLISHED</h1>
-        <h2>You are now connected with {st.session_state.linked_peer}</h2>
-        <p>Start collaborating and utilize your free time productively.</p>
+        <h2>Connected with {st.session_state.get('linked_peer', 'Peer')}</h2>
     </div>
     """, unsafe_allow_html=True)
-
     if st.button("Return to Hub"):
         st.session_state.page = 'hub'
         st.rerun()
