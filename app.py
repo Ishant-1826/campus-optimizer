@@ -2,26 +2,24 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# 1. CORE SYSTEM CONFIG
+# 1. ARCHITECTURAL CONFIG
 st.set_page_config(
     page_title="AI-LINK // Resource Protocol", 
     page_icon="📡", 
     layout="wide"
 )
 
-# 2. HIGH-END CYBER-GRID CSS (English Only)
+# 2. HIGH-END CYBER-GRID CSS
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;600;900&display=swap');
     
-    /* Midnight Cobalt Palette */
     .stApp {
         background: radial-gradient(circle at 10% 10%, #10141d 0%, #07090e 100%);
         font-family: 'Outfit', sans-serif;
         color: #e6edf3;
     }
 
-    /* Advanced HUD Header */
     .hud-header {
         background: linear-gradient(90deg, #00f2fe 0%, #bc8cff 100%);
         -webkit-background-clip: text;
@@ -31,7 +29,6 @@ st.markdown("""
         text-transform: uppercase;
     }
 
-    /* Glassmorphic Node Card */
     .node-card {
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(0, 242, 254, 0.2);
@@ -48,7 +45,6 @@ st.markdown("""
         transform: translateY(-5px);
     }
 
-    /* Interest Badges */
     .badge {
         background: rgba(188, 140, 255, 0.1);
         color: #bc8cff;
@@ -60,7 +56,6 @@ st.markdown("""
         margin-right: 5px;
     }
 
-    /* Tactical Buttons */
     .stButton > button {
         background: transparent !important;
         color: #00f2fe !important;
@@ -79,7 +74,6 @@ st.markdown("""
         box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
     }
 
-    /* Sidebar HUD */
     [data-testid="stSidebar"] {
         background-color: #07090e !important;
         border-right: 1px solid rgba(255,255,255,0.05);
@@ -106,7 +100,6 @@ if st.session_state.page == 'gate':
 
 # --- PAGE 2: THE HUB ---
 elif st.session_state.page == 'hub':
-    # AUTHENTICATION FORM
     if 'user' not in st.session_state:
         c1, c2, c3 = st.columns([1, 1.5, 1])
         with c2:
@@ -114,8 +107,6 @@ elif st.session_state.page == 'hub':
                 st.markdown("<h2 style='text-align: center;'>USER UPLINK</h2>", unsafe_allow_html=True)
                 sid = st.text_input("UNIVERSITY ID", placeholder="Roll Number")
                 nick = st.text_input("ALIAS", placeholder="Choose a display name")
-                
-                # New Interest Selection
                 interests = st.multiselect(
                     "CORE EXPERTISE", 
                     ["Python", "ML", "DSA", "Maths", "Web Dev", "Cybersec", "AI"],
@@ -123,65 +114,61 @@ elif st.session_state.page == 'hub':
                 )
                 
                 if st.form_submit_button("ESTABLISH CONNECTION"):
-                    df = conn.read(ttl=0)
-                    df.columns = df.columns.str.strip().str.lower()
-                    sid_str = str(sid)
-                    interest_str = ", ".join(interests)
-                    
-                    if not df.empty and sid_str in df['student_id'].astype(str).values:
-                        df.loc[df['student_id'].astype(str) == sid_str, 'is_active'] = "TRUE"
-                        df.loc[df['student_id'].astype(str) == sid_str, 'name'] = nick
-                        df.loc[df['student_id'].astype(str) == sid_str, 'interests'] = interest_str
-                    else:
-                        new_user = pd.DataFrame([{"student_id": sid_str, "name": nick, "is_active": "TRUE", "interests": interest_str}])
-                        df = pd.concat([df, new_user], ignore_index=True)
-                    
-                    conn.update(data=df)
-                    st.session_state.user = {"id": sid_str, "name": nick}
-                    st.rerun()
+                    try:
+                        df = conn.read(ttl=0)
+                        df.columns = df.columns.str.strip().str.lower()
+                        sid_str = str(sid)
+                        interest_str = ", ".join(interests)
+                        
+                        if not df.empty and sid_str in df['student_id'].astype(str).values:
+                            df.loc[df['student_id'].astype(str) == sid_str, 'is_active'] = "TRUE"
+                            df.loc[df['student_id'].astype(str) == sid_str, 'name'] = nick
+                            df.loc[df['student_id'].astype(str) == sid_str, 'interests'] = interest_str
+                        else:
+                            new_user = pd.DataFrame([{"student_id": sid_str, "name": nick, "is_active": "TRUE", "interests": interest_str}])
+                            df = pd.concat([df, new_user], ignore_index=True)
+                        
+                        conn.update(data=df)
+                        st.session_state.user = {"id": sid_str, "name": nick}
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Write Error: {e}")
         st.stop()
 
-    # DASHBOARD
     user = st.session_state.user
     st.markdown(f"<h1>SYSTEM HUB // <span style='color:#bc8cff;'>{user['name'].upper()}</span></h1>", unsafe_allow_html=True)
 
-    # REFRESH PROTOCOL
     if st.button("🔄 SYNCHRONIZE ACTIVE NODES"):
         st.cache_data.clear()
         st.rerun()
 
     try:
-        # Load Data
         all_data = conn.read(ttl=0)
         all_data.columns = all_data.columns.str.strip().str.lower()
         
-        # Robust Hybrid Filter
+        # --- THE FIX: ROBUST STATUS CLEANING ---
         if not all_data.empty:
-            all_data['is_active_clean'] = all_data['is_active'].astype(str).str.upper().str.strip()
+            # Convert any type (bool or string) to a clean uppercase string "TRUE"
+            all_data['status_check'] = all_data['is_active'].astype(str).str.strip().str.upper()
             
-            # Hide current user, show active others
+            # Hide current user, show ONLY those that are strictly "TRUE"
             peers = all_data[
                 (all_data['student_id'].astype(str) != str(user['id'])) & 
-                (all_data['is_active_clean'] == "TRUE")
+                (all_data['status_check'] == "TRUE")
             ]
 
             st.markdown(f"### 🤖 DETECTED PEER NODES ({len(peers)})")
 
             if not peers.empty:
-                # 3-Column Advanced Grid
                 cols = st.columns(3)
                 for idx, row in enumerate(peers.iterrows()):
                     with cols[idx % 3]:
-                        # Format interests into small badges
-                        raw_interests = row[1]['interests'].split(", ")
+                        raw_interests = str(row[1]['interests']).split(", ")
                         badges_html = "".join([f"<span class='badge'>{i}</span>" for i in raw_interests])
                         
                         st.markdown(f"""
                             <div class='node-card'>
-                                <div style='display:flex; justify-content:space-between;'>
-                                    <b style='color:#00f2fe; font-size:1.4rem;'>{row[1]['name']}</b>
-                                    <span style='color: #00f2fe;'>敵</span>
-                                </div>
+                                <b style='color:#00f2fe; font-size:1.4rem;'>{row[1]['name']}</b>
                                 <p style='color:#8b949e; font-size:0.8rem; margin:10px 0;'>ID: {row[1]['student_id']}</p>
                                 <div style='margin-bottom:20px;'>{badges_html}</div>
                             </div>
@@ -191,18 +178,15 @@ elif st.session_state.page == 'hub':
                             st.session_state.page = 'success'
                             st.rerun()
             else:
-                st.info("No other active nodes detected on the campus network.")
+                st.info("No other nodes detected. Test this by opening an Incognito window and logging in as a different student ID.")
                 
     except Exception as e:
-        st.error(f"Synchronization Failure: {e}")
+        st.error(f"Read Error: {e}")
 
-    # SIDEBAR HUD
     with st.sidebar:
-        st.markdown("### 🛠️ SYSTEM DIAGNOSTICS")
-        st.write(f"Active Session: **{user['name']}**")
-        if st.checkbox("Show Raw Network Data"):
-            st.dataframe(all_data)
-        st.write("---")
+        st.markdown("### 🛠️ DIAGNOSTICS")
+        if st.checkbox("View Active Sheet"):
+            st.dataframe(all_data[['student_id', 'name', 'is_active']])
         if st.button("TERMINATE CONNECTION"):
             df = conn.read(ttl=0)
             df.columns = df.columns.str.strip().str.lower()
@@ -217,8 +201,7 @@ elif st.session_state.page == 'success':
     st.markdown(f"""
         <div style='text-align: center; border: 2px solid #00f2fe; padding: 50px; border-radius: 20px; background: rgba(0, 242, 254, 0.05);'>
             <h1 style='font-size: 4rem;'>UPLINK ESTABLISHED</h1>
-            <p style='font-size: 1.5rem;'>You are now matched with <b style='color:#bc8cff;'>{st.session_state.linked_peer.upper()}</b></p>
-            <p style='color: #8b949e;'>Meeting Point: <b>Computer Centre Node</b></p>
+            <p style='font-size: 1.5rem;'>Matched with <b style='color:#bc8cff;'>{st.session_state.linked_peer.upper()}</b></p>
         </div>
     """, unsafe_allow_html=True)
     if st.button("RETURN TO HUB"):
