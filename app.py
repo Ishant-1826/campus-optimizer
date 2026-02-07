@@ -2,207 +2,216 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# 1. PAGE SETUP (Advanced UI Theme)
+# 1. ARCHITECTURAL CONFIG
 st.set_page_config(
-    page_title="Reschedule // AI-LINK", 
-    page_icon="藤", 
+    page_title="AI-LINK // Resource Optimizer", 
+    page_icon="📡", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 2. ADVANCED CYBER-GRID CSS
+# 2. CYBER-MODERN CSS INJECTION
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;800&family=Outfit:wght@300;600;900&display=swap');
     
-    /* Core App Styling */
+    /* Background & Global Font */
     .stApp {
-        background: radial-gradient(circle at 50% 50%, #1a1c2c 0%, #0d1117 100%);
-        font-family: 'Space Grotesk', sans-serif;
+        background: radial-gradient(circle at 20% 20%, #161b22 0%, #0d1117 100%);
+        font-family: 'Outfit', sans-serif;
     }
-    
-    /* Neon Text */
+
+    /* Neon Typography */
     h1, h2, h3 {
-        font-family: 'Space Grotesk', sans-serif !important;
-        background: linear-gradient(to right, #00f2fe, #bc8cff);
+        font-family: 'Outfit', sans-serif !important;
+        font-weight: 900 !important;
+        letter-spacing: -0.05em !important;
+        background: linear-gradient(135deg, #00f2fe 0%, #bc8cff 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        letter-spacing: -1px;
     }
 
-    /* Modern Glassmorphism Card */
-    .prism-card {
-        background: rgba(255, 255, 255, 0.03);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 20px;
-        padding: 24px;
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    /* Tactical Card Styling */
+    .cyber-card {
+        background: rgba(22, 27, 34, 0.4);
+        border: 1px solid rgba(48, 54, 61, 0.5);
+        border-left: 4px solid #00f2fe;
+        border-radius: 12px;
+        padding: 25px;
         margin-bottom: 20px;
+        backdrop-filter: blur(12px);
+        transition: all 0.3s ease;
     }
     
-    .prism-card:hover {
-        transform: translateY(-5px);
-        border-color: #00f2fe;
-        background: rgba(255, 255, 255, 0.05);
-        box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
+    .cyber-card:hover {
+        transform: scale(1.01) translateX(5px);
+        background: rgba(30, 35, 45, 0.6);
+        border-color: #bc8cff;
+        box-shadow: 0 0 25px rgba(0, 242, 254, 0.1);
     }
 
-    /* Advanced Animated Button */
+    /* Advanced Buttons */
     .stButton > button {
-        background: linear-gradient(90deg, #00f2fe, #bc8cff, #00f2fe);
-        background-size: 200% auto;
-        color: #000 !important;
-        border: none !important;
-        padding: 12px 24px !important;
-        border-radius: 12px !important;
-        font-weight: 700 !important;
+        background: transparent !important;
+        color: #00f2fe !important;
+        border: 2px solid #00f2fe !important;
+        border-radius: 8px !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-weight: 600 !important;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        transition: 0.5s;
-        width: 100%;
+        letter-spacing: 2px;
+        padding: 15px 30px !important;
+        transition: all 0.4s !important;
     }
 
     .stButton > button:hover {
-        background-position: right center;
-        box-shadow: 0 0 15px #00f2fe;
-        transform: scale(1.02);
+        background: #00f2fe !important;
+        color: #0d1117 !important;
+        box-shadow: 0 0 30px rgba(0, 242, 254, 0.4);
     }
 
-    /* Success Overlay */
-    .success-panel {
-        background: rgba(0, 242, 254, 0.05);
-        border: 2px solid #00f2fe;
-        border-radius: 30px;
-        padding: 60px;
-        text-align: center;
-        animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(0, 242, 254, 0.4); }
-        70% { box-shadow: 0 0 0 20px rgba(0, 242, 254, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(0, 242, 254, 0); }
-    }
-    
-    /* Sidebar Cleanup */
+    /* Sidebar HUD */
     [data-testid="stSidebar"] {
-        background-color: rgba(13, 17, 23, 0.8);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        background-color: #090c10 !important;
+        border-right: 1px solid #30363d;
+    }
+
+    /* Status Pulse */
+    .pulse-dot {
+        height: 10px;
+        width: 10px;
+        background-color: #00f2fe;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 10px;
+        box-shadow: 0 0 10px #00f2fe;
+        animation: pulse-animation 2s infinite;
+    }
+
+    @keyframes pulse-animation {
+        0% { transform: scale(0.95); opacity: 1; }
+        50% { transform: scale(1.2); opacity: 0.5; }
+        100% { transform: scale(0.95); opacity: 1; }
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CONNECTION (Back-end unchanged)
+# 3. CORE LOGIC
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 if 'page' not in st.session_state: st.session_state.page = 'gate'
 
-# --- PAGE 1: GATEWAY ---
+# --- PAGE 1: THE GATEWAY (Advanced Entry) ---
 if st.session_state.page == 'gate':
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
         st.markdown("""
             <div style='text-align: center;'>
-                <h1 style='font-size: 4rem;'>藤 AI-LINK</h1>
-                <p style='color: #8b949e; font-size: 1.2rem;'>Campus Intelligence Protocol</p>
+                <p style='color: #00f2fe; font-family: "JetBrains Mono"; letter-spacing: 5px;'>PROTOCOL: RESCHEDULE</p>
+                <h1 style='font-size: 5rem; margin-bottom: 0;'>AI-LINK</h1>
+                <p style='color: #8b949e; margin-bottom: 50px;'>Neural Campus Resource Distributor</p>
             </div>
         """, unsafe_allow_html=True)
         
-        st.markdown("<div class='prism-card'>", unsafe_allow_html=True)
-        is_free = st.checkbox("藤 SIGNAL STATUS: AVAILABLE")
-        if is_free:
-            st.markdown("<h2 style='color:#00f2fe !important; text-align: center;'>NODE BROADCAST ACTIVE</h2>", unsafe_allow_html=True)
-            if st.button("ENTER HUB"):
+        st.markdown("<div class='cyber-card'>", unsafe_allow_html=True)
+        st.write("### SYSTEM READINESS")
+        is_ready = st.checkbox("ACTIVATE PERSONAL SIGNAL")
+        if is_ready:
+            if st.button("INITIALIZE UPLINK"):
                 st.session_state.page = 'hub'
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- PAGE 2: HUB ---
+# --- PAGE 2: THE HUB (Neural Grid) ---
 elif st.session_state.page == 'hub':
     if 'user' not in st.session_state:
-        col1, col2, col3 = st.columns([1, 1.5, 1])
-        with col2:
-            st.write("## 抄 IDENTITY VERIFICATION")
-            with st.form("login"):
-                sid = st.text_input("ROLL NUMBER", placeholder="e.g. 2024BCS001")
-                nick = st.text_input("NICKNAME", placeholder="How should peers see you?")
-                if st.form_submit_button("INITIALIZE UPLINK"):
+        c1, c2, c3 = st.columns([1, 1.5, 1])
+        with c2:
+            st.markdown("<div class='cyber-card'>", unsafe_allow_html=True)
+            st.write("## 👤 AUTHENTICATION")
+            with st.form("auth_form"):
+                sid = st.text_input("IDENTIFICATION NUMBER", placeholder="e.g. 2024IIITK01")
+                nick = st.text_input("NICKNAME / ALIAS", placeholder="Ex: Shadow")
+                if st.form_submit_button("CONNECT TO NEURAL GRID"):
                     df = conn.read(ttl=0)
                     df.columns = df.columns.str.strip().str.lower()
                     sid_str = str(sid)
                     if not df.empty and sid_str in df['student_id'].astype(str).values:
                         df.loc[df['student_id'].astype(str) == sid_str, 'is_active'] = "TRUE"
                     else:
-                        new_data = pd.DataFrame([{"student_id": sid_str, "name": nick, "is_active": "TRUE", "interests": "General"}])
-                        df = pd.concat([df, new_data], ignore_index=True)
+                        new_user = pd.DataFrame([{"student_id": sid_str, "name": nick, "is_active": "TRUE", "interests": "Logic Labs"}])
+                        df = pd.concat([df, new_user], ignore_index=True)
                     conn.update(data=df)
                     st.session_state.user = {"id": sid_str, "name": nick}
                     st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
         st.stop()
 
-    # LOGGED IN
+    # LOGGED IN INTERFACE
     user = st.session_state.user
     
-    # Header Area
-    hcol1, hcol2 = st.columns([3, 1])
-    with hcol1:
-        st.write(f"# ｪ SYSTEM HUB // {user['name'].upper()}")
-    with hcol2:
-        if st.button("売 REFRESH NODES"):
-            st.cache_data.clear()
-            st.rerun()
+    st.markdown(f"""
+        <div style='display: flex; justify-content: space-between; align-items: center;'>
+            <h1>NODE: {user['name'].upper()}</h1>
+            <p style='font-family: "JetBrains Mono"; color: #00f2fe;'>STATUS: CONNECTED</p>
+        </div>
+    """, unsafe_allow_html=True)
 
+    # REFRESH ACTION
+    if st.button("SYNCHRONIZE NETWORK"):
+        st.cache_data.clear()
+        st.rerun()
+
+    # Campus Metrics
+    st.markdown("### 📍 TACTICAL VENUE SUGGESTIONS")
+    m1, m2, m3 = st.columns(3)
+    with m1: st.markdown('<div class="cyber-card"><h4 style="color:#00f2fe">Comp Centre</h4><p>Usage: 12%<br><b>OPEN FOR PROJECTS</b></p></div>', unsafe_allow_html=True)
+    with m2: st.markdown('<div class="cyber-card"><h4 style="color:#bc8cff">LH-3</h4><p>Usage: 45%<br><b>STUDY GROUP DETECTED</b></p></div>', unsafe_allow_html=True)
+    with m3: st.markdown('<div class="cyber-card"><h4 style="color:#8b949e">Library</h4><p>Usage: 88%<br><b>SILENCE PROTOCOL</b></p></div>', unsafe_allow_html=True)
+
+    # ACTIVE PEER GRID
+    st.markdown("### 🤖 ACTIVE PEER NODES")
     try:
         all_data = conn.read(ttl=0)
         all_data.columns = all_data.columns.str.strip().str.lower()
         
-        # Dashboard Content
-        st.markdown("### 📍 CAMPUS HOTSPOTS")
-        v1, v2, v3 = st.columns(3)
-        with v1: st.markdown('<div class="prism-card"><h4>Computer Centre</h4><p style="color:#00f2fe;">Status: HIGH VACANCY</p></div>', unsafe_allow_html=True)
-        with v2: st.markdown('<div class="prism-card"><h4>Lecture Hall 3</h4><p style="color:#bc8cff;">Status: STUDY GROUP ACTIVE</p></div>', unsafe_allow_html=True)
-        with v3: st.markdown('<div class="prism-card"><h4>Main Library</h4><p style="color:#8b949e;">Status: QUIET ZONE</p></div>', unsafe_allow_html=True)
+        peers = all_data[
+            (all_data['student_id'].astype(str) != str(user['id'])) & 
+            (all_data['is_active'].astype(str).str.upper() == "TRUE")
+        ]
 
-        st.markdown("### 🤖 ACTIVE PEER NODES")
-        if not all_data.empty:
-            others = all_data[
-                (all_data['student_id'].astype(str) != str(user['id'])) & 
-                (all_data['is_active'].astype(str).str.upper() == "TRUE")
-            ]
-
-            if not others.empty:
-                # Use a multi-column grid for peers
-                p_cols = st.columns(3)
-                for idx, row in enumerate(others.iterrows()):
-                    with p_cols[idx % 3]:
-                        st.markdown(f"""
-                        <div class="prism-card">
-                            <div style="display:flex; align-items:center; gap:10px;">
-                                <div style="width:12px; height:12px; background:#00f2fe; border-radius:50%; box-shadow: 0 0 10px #00f2fe;"></div>
-                                <b style="font-size:1.3rem; color: white;">{row[1]['name']}</b>
-                            </div>
-                            <p style="margin: 10px 0; color: #8b949e;">Focus: {row[1]['interests']}</p>
-                            <small style="color: rgba(255,255,255,0.3);">NODE ID: {row[1]['student_id']}</small>
+        if not peers.empty:
+            p_cols = st.columns(2) # Modern 2-column grid
+            for i, (_, row) in enumerate(peers.iterrows()):
+                with p_cols[i % 2]:
+                    st.markdown(f"""
+                        <div class="cyber-card">
+                            <div class="pulse-dot"></div>
+                            <span style="font-size: 1.4rem; color: #f0f6fc; font-weight: 600;">{row['name']}</span>
+                            <p style="color: #8b949e; margin-top: 10px;">
+                                Primary Interest: {row['interests']}<br>
+                                <span style="font-family: 'JetBrains Mono'; font-size: 0.8rem;">ID: {row['student_id']}</span>
+                            </p>
                         </div>
-                        """, unsafe_allow_html=True)
-                        if st.button(f"UPLINK WITH {row[1]['name'].split()[0]}", key=row[1]['student_id']):
-                            st.session_state.linked_peer = row[1]['name']
-                            st.session_state.page = 'success'
-                            st.rerun()
-            else:
-                st.info("No other nodes detected on the network.")
+                    """, unsafe_allow_html=True)
+                    if st.button(f"LINK WITH {row['name'].upper()}", key=f"link_{row['student_id']}"):
+                        st.session_state.linked_peer = row['name']
+                        st.session_state.page = 'success'
+                        st.rerun()
+        else:
+            st.info("PROTOCOL IDLE: No other active nodes found in the current radius.")
                 
     except Exception as e:
-        st.error(f"UI Sync Error: {e}")
+        st.error(f"NEURAL SYNC ERROR: {e}")
 
-    # Sidebar Logout
+    # Sidebar HUD
     with st.sidebar:
-        st.markdown("### 藤 CONNECTION")
-        st.write(f"Protocol Active: **{user['name']}**")
-        if st.button("坎 TERMINATE CONNECTION"):
+        st.markdown("### HUD SETTINGS")
+        st.write(f"Operator: **{user['name']}**")
+        st.write(f"ID: `{user['id']}`")
+        st.divider()
+        if st.button("TERMINATE SESSION"):
             df = conn.read(ttl=0)
             df.columns = df.columns.str.strip().str.lower()
             df.loc[df['student_id'].astype(str) == str(user['id']), 'is_active'] = "FALSE"
@@ -210,20 +219,21 @@ elif st.session_state.page == 'hub':
             st.session_state.clear()
             st.rerun()
 
-# --- PAGE 3: SUCCESS ---
+# --- PAGE 3: SUCCESS (Meeting Protocol) ---
 elif st.session_state.page == 'success':
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
         st.markdown(f"""
-            <div class="success-panel">
-                <h1 style="font-size: 3rem;">怖 UPLINK ESTABLISHED</h1>
-                <p style="font-size: 1.5rem; color: white;">You are now linked with <b>{st.session_state.linked_peer.upper()}</b></p>
-                <hr style="border: 1px solid rgba(0, 242, 254, 0.2); margin: 30px 0;">
-                <p style="color: #00f2fe;">Suggested Rendezvous: <b>Computer Centre Lounge</b></p>
+            <div class='cyber-card' style='text-align: center; border-left: none; border: 2px solid #00f2fe; padding: 60px;'>
+                <h1 style='font-size: 4rem;'>LINK ESTABLISHED</h1>
+                <p style='font-size: 1.5rem; color: #f0f6fc;'>You are now linked with <b>{st.session_state.linked_peer.upper()}</b></p>
+                <div style='margin: 40px 0; padding: 20px; background: rgba(0, 242, 254, 0.1); border-radius: 8px;'>
+                    <p style='color: #00f2fe; font-family: "JetBrains Mono"; margin: 0;'>RENDEZVOUS: Computer Centre - Node B</p>
+                </div>
+                <br>
             </div>
         """, unsafe_allow_html=True)
-        st.write("")
-        if st.button("RETURN TO HUB"):
+        if st.button("RETURN TO COMMAND HUB"):
             st.session_state.page = 'hub'
             st.rerun()
