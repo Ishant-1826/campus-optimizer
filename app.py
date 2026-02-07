@@ -2,29 +2,40 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import numpy as np
-import socket
-import threading
 import time
 from sklearn.neighbors import NearestNeighbors
-import streamlit.components.v1 as components
 
-# 1. UI CONFIGURATION
-st.set_page_config(page_title="Reschedule // AI-LINK", page_icon="📶", layout="wide")
+# 1. UPDATED BRANDING CONFIG
+st.set_page_config(page_title="Reschedule // AI-LINK", page_icon="📅", layout="wide")
 
-# 2. PRISM DARK CSS + 3D Container Styling
+# 2. PRISM DARK CSS (High Contrast + Black Font)
 st.markdown("""
     <style>
-    .stApp { background-color: #0d1117; }
-    h1, h2, h3, label { color: #f0f6fc !important; font-family: 'Inter', sans-serif; font-weight: 800 !important; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
     
+    .stApp { background-color: #0d1117; }
+    
+    /* Typography Visibility */
+    h1, h2, h3, label { 
+        font-family: 'Inter', sans-serif !important; 
+        color: #f0f6fc !important; 
+        font-weight: 800 !important;
+    }
+    p, .stMarkdown { color: #8b949e !important; }
+
+    /* BUTTONS: Prism Gradient with BLACK FONT */
     .stButton > button {
         background: linear-gradient(135deg, #00f2fe 0%, #bc8cff 100%) !important;
-        color: #000 !important; font-weight: 800 !important; 
-        border-radius: 10px !important; text-transform: uppercase;
-        width: 100%;
+        color: #000000 !important; /* High-contrast black text */
+        border: none !important;
+        padding: 0.6rem 2rem !important;
+        border-radius: 10px !important;
+        font-weight: 800 !important;
+        transition: all 0.3s ease !important;
+        text-transform: uppercase;
     }
 
-    /* Modern Toggle Switch Styling */
+    /* PILL TOGGLE */
     div[data-testid="stCheckbox"] > label > div[role="checkbox"] {
         height: 38px !important; width: 75px !important;
         background-color: #21262d !important; border-radius: 40px !important;
@@ -39,62 +50,21 @@ st.markdown("""
         border: 1px solid rgba(48, 54, 61, 0.8);
         border-radius: 16px; padding: 25px; margin-bottom: 20px;
     }
-    .offline-badge { background: #ff4b4b; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; }
-    
-    /* Spline iframe container */
-    .spline-container {
-        border-radius: 20px;
-        overflow: hidden;
-        border: 1px solid #30363d;
-        margin-bottom: 2rem;
-    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. HELPER: SPLINE 3D SCENE ---
-def render_spline():
-    """Embeds the Spline 3D Scene into the Streamlit UI."""
-    spline_url = "https://my.spline.design/APLWNQ6NOdTkkMLi/"
-    components.html(
-        f"""
-        <div style="border-radius: 20px; overflow: hidden;">
-            <iframe src="{spline_url}" frameborder="0" width="100%" height="500px"></iframe>
-        </div>
-        """,
-        height=500,
-    )
-
-# --- 4. OFFLINE P2P DISCOVERY ENGINE ---
-UDP_PORT = 5005
-if 'local_peers' not in st.session_state: st.session_state.local_peers = {}
-
-def start_broadcast(name):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    while True:
-        try:
-            message = f"RESCHEDULE_PEER:{name}".encode()
-            sock.sendto(message, ('<broadcast>', UDP_PORT))
-        except: pass
-        time.sleep(4)
-
-def listen_for_peers():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(('', UDP_PORT))
-    while True:
-        data, addr = sock.recvfrom(1024)
-        msg = data.decode()
-        if msg.startswith("RESCHEDULE_PEER:"):
-            peer_name = msg.split(":")[1]
-            st.session_state.local_peers[addr[0]] = {"name": peer_name, "time": time.time()}
+# 3. DB CONNECTION
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- NAVIGATION ---
 if 'page' not in st.session_state: st.session_state.page = 'gate'
 
-# --- PAGE 1: GATEWAY ---
+# --- PAGE 1: THE GATEWAY ---
 if st.session_state.page == 'gate':
-    render_spline()  # THE 3D DESIGN
+    st.markdown("<br><br>", unsafe_allow_html=True)
     st.write("# 📡 RESCHEDULE GATEWAY")
+    st.write("### AI-DRIVEN CAMPUS RESOURCE OPTIMIZER")
+    
     is_free = st.checkbox("SIGNAL AVAILABILITY", key="gate_toggle")
     if is_free:
         st.markdown("<h1 style='color:#00f2fe !important; font-size: 60px;'>I AM FREE</h1>", unsafe_allow_html=True)
@@ -102,84 +72,70 @@ if st.session_state.page == 'gate':
             st.session_state.page = 'hub'
             st.rerun()
 
-# --- PAGE 2: HUB ---
+# --- PAGE 2: THE HUB (Active-Only Logic) ---
 elif st.session_state.page == 'hub':
     if 'user' not in st.session_state:
-        with st.form("id"):
+        with st.form("identity"):
             sid = st.text_input("ROLL NUMBER")
             name = st.text_input("NICKNAME")
             if st.form_submit_button("CONNECT"):
                 st.session_state.user = {"id": sid, "name": name}
-                threading.Thread(target=start_broadcast, args=(name,), daemon=True).start()
-                threading.Thread(target=listen_for_peers, daemon=True).start()
                 st.rerun()
         st.stop()
 
     user = st.session_state.user
     st.write(f"# 🪐 HUB // {user['name'].upper()}")
 
-    # A. OFFLINE MESH DISCOVERY
-    st.write("### 📶 Local Mesh Nodes")
-    current_time = time.time()
-    active_local = {k: v for k, v in st.session_state.local_peers.items() if current_time - v['time'] < 12}
-    
-    if active_local:
-        for ip, info in active_local.items():
-            st.success(f"Peer Detected via Wi-Fi Direct: **{info['name']}**")
-    else:
-        st.info("Scanning local network for Reschedule nodes...")
-
-    # B. ONLINE KNN MATCHING
-    st.divider()
-    st.write("### 🤖 AI-Matched Peers (Cloud Sync)")
-    all_interests = ["Python", "DSA", "ML", "Math", "Linear Algebra"]
-    my_focus = st.multiselect("DEFINE FOCUS:", all_interests, default=["Python"])
-    
     try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        all_data = conn.read(ttl=0)
-        all_data['interests'] = all_data['interests'].fillna("")
-        all_data['is_active'] = all_data['is_active'].fillna(False).astype(bool)
+        # SYNC DATA
+        all_data = conn.read(ttl=0) 
+        
+        # --- CAMPUS RESOURCE ADVISOR ---
+        st.write("### 📍 Empty Venues & Suggestions")
+        v1, v2 = st.columns(2)
+        with v1: st.markdown('<div class="prism-card"><h3>Computer Centre</h3><p>Status: <b>Empty</b><br>Activity: Project Work</p></div>', unsafe_allow_html=True)
+        with v2: st.markdown('<div class="prism-card"><h3>Lecture Hall 3</h3><p>Status: <b>No Class</b><br>Activity: Study Group</p></div>', unsafe_allow_html=True)
 
-        # Update Current User Status
-        new_row = pd.DataFrame([{"student_id": user["id"], "name": user["name"], "interests": ",".join(my_focus), "is_active": True}])
-        updated_df = pd.concat([all_data[all_data['student_id'] != user["id"]], new_row], ignore_index=True)
-        conn.update(data=updated_df)
-
-        # KNN Logic
+        # --- PEER MATCHING (FILTERED FOR ACTIVE) ---
+        st.divider()
+        st.write("### 🤖 ACTIVE PEER NODES")
+        
+        # This filter ensures unactive users are hidden
         active_peers = all_data[(all_data['is_active'] == True) & (all_data['student_id'] != user['id'])]
+        
         if not active_peers.empty:
-            def encode(lst): return [1 if i in lst.split(",") else 0 for i in all_interests]
-            peer_vecs = [encode(p) for p in active_peers['interests']]
-            my_vec = [1 if i in my_focus else 0 for i in all_interests]
-            
-            knn = NearestNeighbors(n_neighbors=min(len(peer_vecs), 4), metric='cosine')
-            knn.fit(peer_vecs)
-            dist, idx = knn.kneighbors([my_vec])
-            
-            for i, val in enumerate(idx[0]):
-                p = active_peers.iloc[val]
-                sim = round((1 - dist[0][i]) * 100, 1)
-                st.markdown(f'<div class="prism-card">👤 {p["name"]} | Similarity: {sim}%</div>', unsafe_allow_html=True)
-                if st.button(f"⚡ LINK WITH {p['name'].split()[0]}", key=p['student_id']):
-                    st.session_state.linked_peer = p['name']
-                    st.session_state.page = 'success'
-                    st.rerun()
-    except:
-        st.markdown('<span class="offline-badge">OFFLINE MODE ACTIVE</span>', unsafe_allow_html=True)
-        st.warning("Internet disconnected. KNN matching suspended.")
+            for _, p in active_peers.iterrows():
+                with st.container():
+                    st.markdown(f'<div class="prism-card">👤 {p["name"]} <br> <span style="font-size:0.8em; color:#8b949e;">Interests: {p["interests"]}</span></div>', unsafe_allow_html=True)
+                    if st.button(f"⚡ LINK WITH {p['name'].split()[0]}", key=p['student_id']):
+                        st.session_state.linked_peer = p['name']
+                        st.session_state.page = 'success'
+                        st.rerun()
+        else:
+            st.info("Scanning... No other active nodes found at IIIT Kota.")
 
+    except Exception as e:
+        st.error(f"Sync Error: {e}")
+
+    # LOGOUT: Necessary to remove name from other screens
     if st.sidebar.button("🚪 GO OFFLINE"):
-        st.session_state.clear()
-        st.rerun()
+        try:
+            df = conn.read(ttl=0)
+            df.loc[df['student_id'] == user['id'], 'is_active'] = False
+            conn.update(data=df)
+            st.session_state.clear()
+            st.rerun()
+        except: st.error("Sign-out failed.")
 
 # --- PAGE 3: SUCCESS ---
 elif st.session_state.page == 'success':
-    st.markdown(f"<div style='text-align:center;'><h1>🚀 LINKED WITH {st.session_state.linked_peer.upper()}</h1></div>", unsafe_allow_html=True)
-    
-    # Optional: Display 3D scene again as a success celebration
-    render_spline()
-
-    if st.button("RETURN"):
+    st.markdown(f"""
+        <div style="text-align: center; border: 2px solid #00f2fe; padding: 50px; border-radius: 30px;">
+            <h1 style="color:#00f2fe !important;">🚀 UPLINK SUCCESSFUL!</h1>
+            <h2>Linked with {st.session_state.linked_peer.upper()}</h2>
+            <p>Meeting point suggested: <b>Computer Centre</b></p>
+        </div>
+    """, unsafe_allow_html=True)
+    if st.button("RETURN TO HUB"):
         st.session_state.page = 'hub'
         st.rerun()
