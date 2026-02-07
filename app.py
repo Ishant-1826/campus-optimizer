@@ -114,7 +114,7 @@ elif st.session_state.page == 'hub':
                 # Note: If "Maths" is in your sheet, make sure to add it here or clean it.
                 interests = st.multiselect(
                     "CORE EXPERTISE", 
-                    ["Python", "ML", "DSA", "Maths", "Web Dev", "Cybersec", "AI", "Blockchain", "Design"],
+                    ["Python", "ML", "DSA", "Math", "Web Dev", "Cybersec", "AI", "Blockchain", "Design"],
                     default=["Python"]
                 )
                 
@@ -180,7 +180,7 @@ elif st.session_state.page == 'hub':
 
             # C. TRAIN KNN
             # 'brute' algorithm forces direct calculation, safer for small data
-            knn = NearestNeighbors(n_neighbors=len(active_df), metric='jaccard', algorithm='brute')
+            knn = NearestNeighbors(n_neighbors=len(active_df), metric='cosine', algorithm='brute')
             knn.fit(feature_matrix)
 
             # D. FIND CURRENT USER'S NEIGHBORS
