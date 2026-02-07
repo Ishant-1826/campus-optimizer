@@ -46,6 +46,7 @@ def get_local_ip():
 
 def check_internet():
     try:
+        # Check for connection to Cloudflare DNS
         socket.create_connection(("1.1.1.1", 53), timeout=2)
         return True
     except OSError:
@@ -89,14 +90,16 @@ elif st.session_state.page == 'hub':
                 else:
                     # Local Mesh Logic
                     if os.path.exists(LOCAL_FILE):
-                        with open(LOCAL_FILE, 'r') as f: data = json.load(f)
+                        with open(LOCAL_FILE, 'r') as f: 
+                            data = json.load(f)
                         df = pd.DataFrame(data)
                     else:
                         df = pd.DataFrame(columns=["student_id", "name", "interests", "is_active"])
                     
                     df = df[df['student_id'].astype(str) != str(sid)]
                     df = pd.concat([df, pd.DataFrame([user_data])], ignore_index=True)
-                    with open(LOCAL_FILE, 'w') as f: f.write(df.to_json(orient='records'))
+                    with open(LOCAL_FILE, 'w') as f: 
+                        f.write(df.to_json(orient='records'))
                 
                 st.session_state.user = {"id": str(sid), "name": nick}
                 st.rerun()
@@ -107,7 +110,10 @@ elif st.session_state.page == 'hub':
     
     # Load Data based on connectivity
     if online_status:
-        all_data = st.connection("gsheets", type=GSheetsConnection).read(ttl=0)
+        try:
+            all_data = st.connection("gsheets", type=GSheetsConnection).read(ttl=0)
+        except:
+            all_data = pd.read_json(LOCAL_FILE) if os.path.exists(LOCAL_FILE) else pd.DataFrame()
     else:
         all_data = pd.read_json(LOCAL_FILE) if os.path.exists(LOCAL_FILE) else pd.DataFrame()
 
@@ -122,7 +128,6 @@ elif st.session_state.page == 'hub':
         if active_peers.empty:
             st.info("Scanning for active nodes... No other peers online.")
         else:
-            # KNN Ranking Logic
             st.subheader("RECOMMENDED PEER NODES")
             for _, peer in active_peers.iterrows():
                 with st.container():
