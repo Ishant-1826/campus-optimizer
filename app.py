@@ -6,17 +6,35 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import MultiLabelBinarizer
 
 # --- CONFIGURATION ---
-# The URL you provided. We append .json to use the REST API.
 FIREBASE_URL = "https://reschedule-b3620-default-rtdb.firebaseio.com/users"
+
+# --- TIMETABLE DATA (SECTION A) ---
+#  Lecture Schedule
+LECTURES = {
+    "Monday":    ["AIT102 (AI)", "MAT102 (Math)", "ECT102-T (Elec)", "CST102 (DSA)"],
+    "Tuesday":   ["FREE",        "ECT102 (Elec)", "MAT102 (Math)",   "FREE"],
+    "Wednesday": ["CST102 (DSA)", "ECT102 (Elec)", "CST102 (DSA)",   "FREE"],
+    "Thursday":  ["MAT102 (Math)", "AIT102 (AI)",   "MMT102 (Mgmt)",  "FREE"],
+    "Friday":    ["FREE",        "FREE",          "FREE",            "FREE"]
+}
+
+#  Lab Schedule by Batch (Afternoon Slots)
+# Mapped from the provided PDF content
+LABS = {
+    "A1": {"Monday": "CSP112 (Python) - Lab 124", "Thursday": "AIP102 (Data Eng) - Lab 123", "Friday": "CSP102 (DSA) - Lab 138"},
+    "A2": {"Monday": "CSP102 (DSA) - Lab 138", "Thursday": "ECP102 (Elec) - Lab 236", "Friday": "CSP112 (Python) - Lab 124"},
+    "A3": {"Monday": "HSP102 (Writing) - Lab 305", "Wednesday": "AIP102 (Data Eng) - Lab 123", "Thursday": "CSP112 (Python) - Lab 124", "Friday": "CSP102 (DSA) - Lab 138"},
+    "A4": {"Wednesday": "HSP102/ECP102", "Thursday": "CSP102 (DSA) - Lab 138", "Friday": "CSP112 (Python) - Lab 32"}
+}
 
 # 1. ARCHITECTURAL CONFIG
 st.set_page_config(
     page_title="Reschedule // Resource Protocol", 
-    page_icon="､", 
+    page_icon="📅", 
     layout="wide"
 )
 
-# 2. HIGH-END CYBER-GRID CSS
+# 2. HIGH-END CYBER-GRID CSS (CLEANED)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;600;900&display=swap');
@@ -52,6 +70,27 @@ st.markdown("""
         transform: translateY(-5px);
     }
 
+    .schedule-card {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        text-align: center;
+    }
+    
+    .slot-free {
+        border-color: #00ff9d;
+        color: #00ff9d;
+        background: rgba(0, 255, 157, 0.05);
+    }
+
+    .slot-lab {
+        border-color: #ffb86c;
+        color: #ffb86c;
+        background: rgba(255, 184, 108, 0.05);
+    }
+
     .badge {
         background: rgba(188, 140, 255, 0.1);
         color: #bc8cff;
@@ -80,38 +119,30 @@ st.markdown("""
 
 # 3. DATABASE HELPER FUNCTIONS
 def get_all_users():
-    """Fetches all users from Firebase and returns a DataFrame."""
     try:
-        # Fetch data from Firebase REST API
         response = requests.get(f"{FIREBASE_URL}.json")
         data = response.json()
-        
         if data:
-            # Firebase returns a dict where keys are IDs. 
-            # We convert the values (user objects) into a list for the DataFrame.
             users_list = list(data.values())
             df = pd.DataFrame(users_list)
             return df
         else:
-            return pd.DataFrame(columns=["student_id", "name", "interests", "is_active"])
+            return pd.DataFrame(columns=["student_id", "name", "interests", "is_active", "batch"])
     except Exception as e:
         st.error(f"Connection Error: {e}")
         return pd.DataFrame()
 
-def upsert_user(student_id, name, interests, is_active):
-    """Creates or Updates a user in Firebase."""
+def upsert_user(student_id, name, interests, is_active, batch):
     user_data = {
         "student_id": str(student_id),
         "name": name,
         "interests": interests,
-        "is_active": str(is_active).upper()
+        "is_active": str(is_active).upper(),
+        "batch": batch
     }
-    # Use PUT to create/replace data at a specific path (using student_id as key)
     requests.put(f"{FIREBASE_URL}/{student_id}.json", json=user_data)
 
 def update_status(student_id, is_active):
-    """Updates only the status of a specific user."""
-    # Use PATCH to update specific fields without overwriting the whole record
     requests.patch(f"{FIREBASE_URL}/{student_id}.json", json={"is_active": str(is_active).upper()})
 
 
@@ -139,6 +170,7 @@ elif st.session_state.page == 'hub':
                 st.markdown("<h2 style='text-align: center;'>USER UPLINK</h2>", unsafe_allow_html=True)
                 sid = st.text_input("UNIVERSITY ID", placeholder="Roll Number")
                 nick = st.text_input("ALIAS", placeholder="Choose a display name")
+                batch = st.selectbox("BATCH (SECTION A)", ["A1", "A2", "A3", "A4"])
                 interests = st.multiselect(
                     "CORE EXPERTISE", 
                     ["Python", "ML", "DSA", "Math", "Web Dev", "Cybersec", "AI", "Blockchain", "Design"],
@@ -151,10 +183,8 @@ elif st.session_state.page == 'hub':
                         interest_str = ", ".join(interests)
                         
                         if sid_str and nick:
-                            # Send data to Firebase
-                            upsert_user(sid_str, nick, interest_str, "TRUE")
-                            
-                            st.session_state.user = {"id": sid_str, "name": nick}
+                            upsert_user(sid_str, nick, interest_str, "TRUE", batch)
+                            st.session_state.user = {"id": sid_str, "name": nick, "batch": batch}
                             st.rerun()
                         else:
                             st.warning("CREDENTIALS REQUIRED")
@@ -164,92 +194,147 @@ elif st.session_state.page == 'hub':
 
     # --- MAIN INTERFACE BLOCK ---
     user = st.session_state.user
-    st.markdown(f"<h1>SYSTEM HUB // <span style='color:#bc8cff;'>{user['name'].upper()}</span></h1>", unsafe_allow_html=True)
-
-    if st.button("売 SYNCHRONIZE ACTIVE NODES"):
-        st.cache_data.clear()
-        st.rerun()
-
-    try:
-        # Load data from Firebase into DataFrame for processing
-        all_data = get_all_users()
+    
+    # NAVIGATION
+    nav_c1, nav_c2, nav_c3 = st.columns([1, 2, 1])
+    with nav_c2:
+        st.markdown(f"<h3 style='text-align:center;'>OPERATOR: <span style='color:#bc8cff;'>{user['name'].upper()}</span> | BATCH: {user['batch']}</h3>", unsafe_allow_html=True)
         
-        if not all_data.empty:
-            all_data.columns = all_data.columns.str.strip().str.lower()
+    tab1, tab2 = st.tabs(["🤝 PEER NETWORK", "📅 SCHEDULE"])
+
+    # --- TAB 1: PEER NETWORK ---
+    with tab1:
+        if st.button("🔄 SYNCHRONIZE ACTIVE NODES"):
+            st.cache_data.clear()
+            st.rerun()
+
+        try:
+            all_data = get_all_users()
             
-            # Logic Cleanup
-            all_data['is_active'] = all_data['is_active'].astype(str).str.strip().str.upper()
-            active_df = all_data[all_data['is_active'] == "TRUE"].copy().reset_index(drop=True)
+            if not all_data.empty:
+                all_data.columns = all_data.columns.str.strip().str.lower()
+                all_data['is_active'] = all_data['is_active'].astype(str).str.strip().str.upper()
+                active_df = all_data[all_data['is_active'] == "TRUE"].copy().reset_index(drop=True)
 
-            if len(active_df) < 2:
-                 st.info("藤 SCANNING... No other active nodes detected.")
-            else:
-                # KNN Logic
-                active_df['interests_clean'] = active_df['interests'].astype(str).str.lower().apply(
-                    lambda x: [i.strip() for i in x.split(',') if i.strip()]
-                )
-                mlb = MultiLabelBinarizer()
-                feature_matrix = mlb.fit_transform(active_df['interests_clean'])
-                
-                # Check if we have enough samples for neighbors (min 5 or total length)
-                n_neighbors = min(len(active_df), 5) 
-                knn = NearestNeighbors(n_neighbors=n_neighbors, metric='jaccard', algorithm='brute')
-                knn.fit(feature_matrix)
-
-                # Find current user index safely
-                user_matches = active_df[active_df['student_id'].astype(str) == str(user['id'])]
-                
-                if not user_matches.empty:
-                    curr_user_idx = user_matches.index[0]
-                    distances, indices = knn.kneighbors([feature_matrix[curr_user_idx]])
-
-                    st.markdown(f"### 識 RECOMMENDED PEER NODES")
-                    cols = st.columns(3)
-                    count = 0
-                    
-                    # Loop through neighbors
-                    for i, neighbor_idx in enumerate(indices[0]):
-                        if neighbor_idx == curr_user_idx: continue # Skip self
-                        
-                        peer_row = active_df.iloc[neighbor_idx]
-                        dist = distances[0][i]
-                        match_score = int((1 - dist) * 100)
-                        
-                        display_tags = [t.upper() for t in peer_row['interests_clean']]
-                        badges_html = "".join([f"<span class='badge'>{x}</span>" for x in display_tags])
-                        
-                        with cols[count % 3]:
-                            st.markdown(f"""
-                                <div class='node-card'>
-                                    <div style='display: flex; justify-content: space-between;'>
-                                        <b style='color:#00f2fe; font-size:1.4rem;'>{peer_row['name']}</b>
-                                        <span style='color: #bc8cff; font-weight:bold;'>{match_score}% MATCH</span>
-                                    </div>
-                                    <p style='color:#8b949e; font-size:0.8rem; margin:10px 0;'>ID: {peer_row['student_id']}</p>
-                                    <div style='margin-bottom:20px;'>{badges_html}</div>
-                                </div>
-                            """, unsafe_allow_html=True)
-                            
-                            if st.button(f"LINK WITH {peer_row['name'].upper()}", key=f"btn_{peer_row['student_id']}"):
-                                st.session_state.linked_peer = peer_row['name']
-                                st.session_state.page = 'success'
-                                st.rerun()
-                        count += 1
+                if len(active_df) < 2:
+                     st.info("🔍 SCANNING... No other active nodes detected.")
                 else:
-                    st.warning("User data desynchronized. Please re-login.")
-        else:
-            st.info("System Empty. Waiting for nodes...")
+                    active_df['interests_clean'] = active_df['interests'].astype(str).str.lower().apply(
+                        lambda x: [i.strip() for i in x.split(',') if i.strip()]
+                    )
+                    mlb = MultiLabelBinarizer()
+                    feature_matrix = mlb.fit_transform(active_df['interests_clean'])
+                    
+                    n_neighbors = min(len(active_df), 5) 
+                    knn = NearestNeighbors(n_neighbors=n_neighbors, metric='jaccard', algorithm='brute')
+                    knn.fit(feature_matrix)
+
+                    user_matches = active_df[active_df['student_id'].astype(str) == str(user['id'])]
+                    
+                    if not user_matches.empty:
+                        curr_user_idx = user_matches.index[0]
+                        distances, indices = knn.kneighbors([feature_matrix[curr_user_idx]])
+
+                        st.markdown(f"### RECOMMENDED PEER NODES")
+                        cols = st.columns(3)
+                        count = 0
+                        
+                        for i, neighbor_idx in enumerate(indices[0]):
+                            if neighbor_idx == curr_user_idx: continue
+                            
+                            peer_row = active_df.iloc[neighbor_idx]
+                            dist = distances[0][i]
+                            match_score = int((1 - dist) * 100)
+                            
+                            display_tags = [t.upper() for t in peer_row['interests_clean']]
+                            badges_html = "".join([f"<span class='badge'>{x}</span>" for x in display_tags])
+                            
+                            with cols[count % 3]:
+                                st.markdown(f"""
+                                    <div class='node-card'>
+                                        <div style='display: flex; justify-content: space-between;'>
+                                            <b style='color:#00f2fe; font-size:1.4rem;'>{peer_row['name']}</b>
+                                            <span style='color: #bc8cff; font-weight:bold;'>{match_score}% MATCH</span>
+                                        </div>
+                                        <p style='color:#8b949e; font-size:0.8rem; margin:10px 0;'>ID: {peer_row['student_id']}</p>
+                                        <div style='margin-bottom:20px;'>{badges_html}</div>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                                
+                                if st.button(f"LINK WITH {peer_row['name'].upper()}", key=f"btn_{peer_row['student_id']}"):
+                                    st.session_state.linked_peer = peer_row['name']
+                                    st.session_state.page = 'success'
+                                    st.rerun()
+                            count += 1
+                    else:
+                        st.warning("User data desynchronized. Please re-login.")
+            else:
+                st.info("System Empty. Waiting for nodes...")
+                    
+        except Exception as e:
+            st.error(f"System Error: {e}")
+
+    # --- TAB 2: SCHEDULE (TIMETABLE) ---
+    with tab2:
+        st.markdown("### 🗓️ WEEKLY PROTOCOL (SECTION A)")
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        
+        # User's Lab Schedule
+        my_labs = LABS.get(user['batch'], {})
+
+        # Create 5 columns for M-F
+        cols = st.columns(5)
+        
+        for idx, day in enumerate(days):
+            with cols[idx]:
+                st.markdown(f"<div style='text-align:center; margin-bottom:10px; font-weight:bold; color:#bc8cff;'>{day.upper()}</div>", unsafe_allow_html=True)
                 
-    except Exception as e:
-        st.error(f"System Error: {e}")
+                # 1. MORNING SLOTS (9-1)
+                daily_lectures = LECTURES[day]
+                times = ["09:00", "10:00", "11:00", "12:00"]
+                
+                for time, subject in zip(times, daily_lectures):
+                    # Style logic
+                    if subject == "FREE":
+                        style_class = "slot-free"
+                        content = "🟢 FREE SLOT"
+                    else:
+                        style_class = "schedule-card"
+                        content = subject
+                        
+                    st.markdown(f"""
+                        <div class='schedule-card {style_class}'>
+                            <span style='font-size:0.7rem; color:#8b949e;'>{time}</span><br>
+                            {content}
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                # 2. LUNCH
+                st.markdown("<div style='text-align:center; color:#8b949e; font-size:0.8rem; margin: 10px 0;'>--- LUNCH (13:00) ---</div>", unsafe_allow_html=True)
+
+                # 3. LABS (2-5 PM)
+                lab_content = my_labs.get(day, "NO LABS")
+                if lab_content != "NO LABS":
+                    st.markdown(f"""
+                        <div class='schedule-card slot-lab'>
+                            <span style='font-size:0.7rem; color:#ffb86c;'>14:00 - 17:00</span><br>
+                            🧪 {lab_content}
+                        </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                        <div class='schedule-card slot-free'>
+                            <span style='font-size:0.7rem; color:#00ff9d;'>14:00 - 17:00</span><br>
+                            🟢 FREE TIME
+                        </div>
+                    """, unsafe_allow_html=True)
 
     with st.sidebar:
-        st.markdown("### 屏 DIAGNOSTICS")
-        if st.checkbox("Show Network Data (Internal View)"):
-            st.dataframe(all_data)
+        st.markdown("### ⚙️ DIAGNOSTICS")
+        if st.checkbox("Show Network Data"):
+            st.dataframe(get_all_users())
         if st.button("TERMINATE CONNECTION"):
             st.cache_data.clear()
-            # Update Firebase status to FALSE
             update_status(user['id'], "FALSE")
             st.session_state.clear()
             st.rerun()
