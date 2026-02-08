@@ -28,7 +28,7 @@ LABS = {
 
 # 1. ARCHITECTURAL CONFIG
 st.set_page_config(
-    page_title="Reconnect // Resource Protocol", 
+    page_title="Reschedule // Resource Protocol", 
     page_icon="📅", 
     layout="wide"
 )
@@ -153,7 +153,7 @@ if st.session_state.page == 'gate':
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         # UPDATED TITLE HERE
-        st.markdown("<h1 class='hud-header' style='font-size: 5rem; text-align: center; margin-bottom:0;'>Reconnect</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='hud-header' style='font-size: 5rem; text-align: center; margin-bottom:0;'>Reschedule</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #8b949e; letter-spacing: 4px;'>NETWORK ACCESS PROTOCOL</p>", unsafe_allow_html=True)
         st.write("---")
         if st.button("INITIALIZE SYSTEM"):
