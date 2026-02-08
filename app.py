@@ -19,7 +19,6 @@ LECTURES = {
 }
 
 #  Lab Schedule by Batch (Afternoon Slots)
-# Mapped from the provided PDF content
 LABS = {
     "A1": {"Monday": "CSP112 (Python) - Lab 124", "Thursday": "AIP102 (Data Eng) - Lab 123", "Friday": "CSP102 (DSA) - Lab 138"},
     "A2": {"Monday": "CSP102 (DSA) - Lab 138", "Thursday": "ECP102 (Elec) - Lab 236", "Friday": "CSP112 (Python) - Lab 124"},
@@ -29,12 +28,12 @@ LABS = {
 
 # 1. ARCHITECTURAL CONFIG
 st.set_page_config(
-    page_title="Reschedule // Resource Protocol", 
+    page_title="Reconnect // Resource Protocol", 
     page_icon="📅", 
     layout="wide"
 )
 
-# 2. HIGH-END CYBER-GRID CSS (CLEANED)
+# 2. HIGH-END CYBER-GRID CSS
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;600;900&display=swap');
@@ -153,7 +152,8 @@ if st.session_state.page == 'gate':
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        st.markdown("<h1 class='hud-header' style='font-size: 5rem; text-align: center; margin-bottom:0;'>AI-LINK</h1>", unsafe_allow_html=True)
+        # UPDATED TITLE HERE
+        st.markdown("<h1 class='hud-header' style='font-size: 5rem; text-align: center; margin-bottom:0;'>Reconnect</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #8b949e; letter-spacing: 4px;'>NETWORK ACCESS PROTOCOL</p>", unsafe_allow_html=True)
         st.write("---")
         if st.button("INITIALIZE SYSTEM"):
