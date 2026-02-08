@@ -1,13 +1,18 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+import requests
+import json
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import MultiLabelBinarizer
+
+# --- CONFIGURATION ---
+# The URL you provided. We append .json to use the REST API.
+FIREBASE_URL = "https://reschedule-b3620-default-rtdb.firebaseio.com/users"
 
 # 1. ARCHITECTURAL CONFIG
 st.set_page_config(
     page_title="Reschedule // Resource Protocol", 
-    page_icon="🤖", 
+    page_icon="､", 
     layout="wide"
 )
 
@@ -73,8 +78,39 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. DATABASE CONNECTION
-conn = st.connection("gsheets", type=GSheetsConnection)
+# 3. DATABASE HELPER FUNCTIONS
+def get_all_users():
+    """Fetches all users from Firebase and returns a DataFrame."""
+    try:
+        response = requests.get(f"{FIREBASE_URL}.json")
+        data = response.json()
+        
+        if data:
+            # Convert Firebase dict (keys=ids) to List of dicts
+            users_list = list(data.values())
+            df = pd.DataFrame(users_list)
+            return df
+        else:
+            return pd.DataFrame(columns=["student_id", "name", "interests", "is_active"])
+    except Exception as e:
+        st.error(f"Connection Error: {e}")
+        return pd.DataFrame()
+
+def upsert_user(student_id, name, interests, is_active):
+    """Creates or Updates a user in Firebase."""
+    user_data = {
+        "student_id": str(student_id),
+        "name": name,
+        "interests": interests,
+        "is_active": str(is_active).upper()
+    }
+    # Use PUT to set data at a specific key (student_id)
+    requests.put(f"{FIREBASE_URL}/{student_id}.json", json=user_data)
+
+def update_status(student_id, is_active):
+    """Updates only the status of a specific user."""
+    requests.patch(f"{FIREBASE_URL}/{student_id}.json", json={"is_active": str(is_active).upper()})
+
 
 if 'page' not in st.session_state: st.session_state.page = 'gate'
 
@@ -109,36 +145,17 @@ elif st.session_state.page == 'hub':
                 if st.form_submit_button("ESTABLISH CONNECTION"):
                     try:
                         st.cache_data.clear()
-                        df = conn.read(ttl=0)
-                        df.columns = df.columns.str.strip().str.lower()
-                        
-                        # Data Cleaning: Convert existing 1/0 to TRUE/FALSE strings
-                        df['is_active'] = df['is_active'].astype(str).str.replace('1', 'TRUE').str.replace('0', 'FALSE').str.upper()
-                        
                         sid_str = str(sid).strip()
                         interest_str = ", ".join(interests)
                         
-                        if not df.empty and sid_str in df['student_id'].astype(str).values:
-                            mask = df['student_id'].astype(str) == sid_str
-                            df.loc[mask, 'is_active'] = "TRUE"
-                            df.loc[mask, 'name'] = nick
-                            df.loc[mask, 'interests'] = interest_str
+                        if sid_str and nick:
+                            # Send data to Firebase
+                            upsert_user(sid_str, nick, interest_str, "TRUE")
+                            
+                            st.session_state.user = {"id": sid_str, "name": nick}
+                            st.rerun()
                         else:
-                            new_user = pd.DataFrame([{
-                                "student_id": sid_str, 
-                                "name": nick, 
-                                "is_active": "TRUE", 
-                                "interests": interest_str
-                            }])
-                            df = pd.concat([df, new_user], ignore_index=True)
-                        
-                        # Final check before update to ensure no 1/0 is sent
-                        df['is_active'] = df['is_active'].astype(str).str.upper()
-                        
-                        conn.update(data=df)
-                        st.cache_data.clear()
-                        st.session_state.user = {"id": sid_str, "name": nick}
-                        st.rerun()
+                            st.warning("CREDENTIALS REQUIRED")
                     except Exception as e:
                         st.error(f"Write Error: {e}")
         st.stop()
@@ -147,77 +164,91 @@ elif st.session_state.page == 'hub':
     user = st.session_state.user
     st.markdown(f"<h1>SYSTEM HUB // <span style='color:#bc8cff;'>{user['name'].upper()}</span></h1>", unsafe_allow_html=True)
 
-    if st.button("🔄 SYNCHRONIZE ACTIVE NODES"):
+    if st.button("売 SYNCHRONIZE ACTIVE NODES"):
         st.cache_data.clear()
         st.rerun()
 
     try:
-        all_data = conn.read(ttl=0)
-        all_data.columns = all_data.columns.str.strip().str.lower()
+        # Load data from Firebase into DataFrame for processing
+        all_data = get_all_users()
         
-        # Cleanup Column D for UI and Logic
-        all_data['is_active'] = all_data['is_active'].astype(str).str.strip().str.upper()
-        all_data['is_active'] = all_data['is_active'].replace({'1': 'TRUE', '0': 'FALSE', '1.0': 'TRUE', '0.0': 'FALSE'})
-        
-        active_df = all_data[all_data['is_active'] == "TRUE"].copy().reset_index(drop=True)
-
-        if len(active_df) < 2:
-             st.info("📡 SCANNING... No other active nodes detected.")
-        else:
-            # KNN Logic
-            active_df['interests_clean'] = active_df['interests'].astype(str).str.lower().apply(
-                lambda x: [i.strip() for i in x.split(',') if i.strip()]
-            )
-            mlb = MultiLabelBinarizer()
-            feature_matrix = mlb.fit_transform(active_df['interests_clean'])
-            knn = NearestNeighbors(n_neighbors=len(active_df), metric='jaccard', algorithm='brute')
-            knn.fit(feature_matrix)
-
-            curr_user_idx = active_df[active_df['student_id'].astype(str) == str(user['id'])].index[0]
-            distances, indices = knn.kneighbors([feature_matrix[curr_user_idx]])
-
-            st.markdown(f"### 🎯 RECOMMENDED PEER NODES")
-            cols = st.columns(3)
-            count = 0
+        if not all_data.empty:
+            all_data.columns = all_data.columns.str.strip().str.lower()
             
-            for i, neighbor_idx in enumerate(indices[0][1:]):
-                peer_row = active_df.iloc[neighbor_idx]
-                dist = distances[0][i+1]
-                match_score = int((1 - dist) * 100)
-                display_tags = [t.upper() for t in peer_row['interests_clean']]
-                badges_html = "".join([f"<span class='badge'>{x}</span>" for x in display_tags])
+            # Logic Cleanup
+            all_data['is_active'] = all_data['is_active'].astype(str).str.strip().str.upper()
+            active_df = all_data[all_data['is_active'] == "TRUE"].copy().reset_index(drop=True)
+
+            if len(active_df) < 2:
+                 st.info("藤 SCANNING... No other active nodes detected.")
+            else:
+                # KNN Logic
+                active_df['interests_clean'] = active_df['interests'].astype(str).str.lower().apply(
+                    lambda x: [i.strip() for i in x.split(',') if i.strip()]
+                )
+                mlb = MultiLabelBinarizer()
+                feature_matrix = mlb.fit_transform(active_df['interests_clean'])
                 
-                with cols[count % 3]:
-                    st.markdown(f"""
-                        <div class='node-card'>
-                            <div style='display: flex; justify-content: space-between;'>
-                                <b style='color:#00f2fe; font-size:1.4rem;'>{peer_row['name']}</b>
-                                <span style='color: #bc8cff; font-weight:bold;'>{match_score}% MATCH</span>
-                            </div>
-                            <p style='color:#8b949e; font-size:0.8rem; margin:10px 0;'>ID: {peer_row['student_id']}</p>
-                            <div style='margin-bottom:20px;'>{badges_html}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
+                # Check if we have enough samples for neighbors
+                n_neighbors = min(len(active_df), 5) 
+                knn = NearestNeighbors(n_neighbors=n_neighbors, metric='jaccard', algorithm='brute')
+                knn.fit(feature_matrix)
+
+                # Find current user index safely
+                user_matches = active_df[active_df['student_id'].astype(str) == str(user['id'])]
+                
+                if not user_matches.empty:
+                    curr_user_idx = user_matches.index[0]
+                    distances, indices = knn.kneighbors([feature_matrix[curr_user_idx]])
+
+                    st.markdown(f"### 識 RECOMMENDED PEER NODES")
+                    cols = st.columns(3)
+                    count = 0
                     
-                    if st.button(f"LINK WITH {peer_row['name'].upper()}", key=f"btn_{peer_row['student_id']}"):
-                        st.session_state.linked_peer = peer_row['name']
-                        st.session_state.page = 'success'
-                        st.rerun()
-                count += 1
+                    # indices[0][1:] skips the user themselves (distance 0)
+                    for i, neighbor_idx in enumerate(indices[0]):
+                        if neighbor_idx == curr_user_idx: continue # Skip self
+                        
+                        peer_row = active_df.iloc[neighbor_idx]
+                        dist = distances[0][i]
+                        match_score = int((1 - dist) * 100)
+                        
+                        display_tags = [t.upper() for t in peer_row['interests_clean']]
+                        badges_html = "".join([f"<span class='badge'>{x}</span>" for x in display_tags])
+                        
+                        with cols[count % 3]:
+                            st.markdown(f"""
+                                <div class='node-card'>
+                                    <div style='display: flex; justify-content: space-between;'>
+                                        <b style='color:#00f2fe; font-size:1.4rem;'>{peer_row['name']}</b>
+                                        <span style='color: #bc8cff; font-weight:bold;'>{match_score}% MATCH</span>
+                                    </div>
+                                    <p style='color:#8b949e; font-size:0.8rem; margin:10px 0;'>ID: {peer_row['student_id']}</p>
+                                    <div style='margin-bottom:20px;'>{badges_html}</div>
+                                </div>
+                            """, unsafe_allow_html=True)
+                            
+                            if st.button(f"LINK WITH {peer_row['name'].upper()}", key=f"btn_{peer_row['student_id']}"):
+                                st.session_state.linked_peer = peer_row['name']
+                                st.session_state.page = 'success'
+                                st.rerun()
+                        count += 1
+                else:
+                    st.warning("User data desynchronized. Please re-login.")
+        else:
+            st.info("System Empty. Waiting for nodes...")
                 
     except Exception as e:
         st.error(f"System Error: {e}")
 
     with st.sidebar:
-        st.markdown("### 🛠 DIAGNOSTICS")
+        st.markdown("### 屏 DIAGNOSTICS")
         if st.checkbox("Show Network Data (Internal View)"):
             st.dataframe(all_data)
         if st.button("TERMINATE CONNECTION"):
             st.cache_data.clear()
-            df = conn.read(ttl=0)
-            df.columns = df.columns.str.strip().str.lower()
-            df.loc[df['student_id'].astype(str) == str(user['id']), 'is_active'] = "FALSE"
-            conn.update(data=df)
+            # Update Firebase status to FALSE
+            update_status(user['id'], "FALSE")
             st.session_state.clear()
             st.rerun()
 
