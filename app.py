@@ -82,11 +82,13 @@ st.markdown("""
 def get_all_users():
     """Fetches all users from Firebase and returns a DataFrame."""
     try:
+        # Fetch data from Firebase REST API
         response = requests.get(f"{FIREBASE_URL}.json")
         data = response.json()
         
         if data:
-            # Convert Firebase dict (keys=ids) to List of dicts
+            # Firebase returns a dict where keys are IDs. 
+            # We convert the values (user objects) into a list for the DataFrame.
             users_list = list(data.values())
             df = pd.DataFrame(users_list)
             return df
@@ -104,11 +106,12 @@ def upsert_user(student_id, name, interests, is_active):
         "interests": interests,
         "is_active": str(is_active).upper()
     }
-    # Use PUT to set data at a specific key (student_id)
+    # Use PUT to create/replace data at a specific path (using student_id as key)
     requests.put(f"{FIREBASE_URL}/{student_id}.json", json=user_data)
 
 def update_status(student_id, is_active):
     """Updates only the status of a specific user."""
+    # Use PATCH to update specific fields without overwriting the whole record
     requests.patch(f"{FIREBASE_URL}/{student_id}.json", json={"is_active": str(is_active).upper()})
 
 
@@ -144,7 +147,6 @@ elif st.session_state.page == 'hub':
                 
                 if st.form_submit_button("ESTABLISH CONNECTION"):
                     try:
-                        st.cache_data.clear()
                         sid_str = str(sid).strip()
                         interest_str = ", ".join(interests)
                         
@@ -189,7 +191,7 @@ elif st.session_state.page == 'hub':
                 mlb = MultiLabelBinarizer()
                 feature_matrix = mlb.fit_transform(active_df['interests_clean'])
                 
-                # Check if we have enough samples for neighbors
+                # Check if we have enough samples for neighbors (min 5 or total length)
                 n_neighbors = min(len(active_df), 5) 
                 knn = NearestNeighbors(n_neighbors=n_neighbors, metric='jaccard', algorithm='brute')
                 knn.fit(feature_matrix)
@@ -205,7 +207,7 @@ elif st.session_state.page == 'hub':
                     cols = st.columns(3)
                     count = 0
                     
-                    # indices[0][1:] skips the user themselves (distance 0)
+                    # Loop through neighbors
                     for i, neighbor_idx in enumerate(indices[0]):
                         if neighbor_idx == curr_user_idx: continue # Skip self
                         
